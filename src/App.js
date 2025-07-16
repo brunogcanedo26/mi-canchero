@@ -12,7 +12,9 @@ import {
     setDoc,
     Timestamp
 } from 'firebase/firestore';
-import { PlusCircle, Trash2, Edit, Save, XCircle, ChevronDown, ChevronUp, Download, LogIn, LogOut, BarChart2 } from 'lucide-react';
+import { PlusCircle, Trash2, Edit, Save, XCircle, Download, LogIn, LogOut, BarChart2 } from 'lucide-react';
+import Calendar from 'react-calendar'; // Import react-calendar
+import 'react-calendar/dist/Calendar.css'; // Import default styles
 
 // Firebase configuration and initialization
 const firebaseConfig = process.env.REACT_APP_FIREBASE_CONFIG ? JSON.parse(process.env.REACT_APP_FIREBASE_CONFIG) : {};
@@ -76,6 +78,7 @@ class ErrorBoundary extends Component {
 
 function App() {
     const [matches, setMatches] = useState([]);
+    const [deletedMatches, setDeletedMatches] = useState([]); // New state for deleted matches
     const [newMatch, setNewMatch] = useState({
         team1Player1: { value: '', type: 'dropdown' },
         team1Player2: { value: '', type: 'dropdown' },
@@ -94,13 +97,12 @@ function App() {
     const [matchToDelete, setMatchToDelete] = useState(null);
     const [errorMessage, setErrorMessage] = useState('');
     const [groupedMatches, setGroupedMatches] = useState({}); 
-    const [expandedDates, setExpandedDates] = useState(new Set()); 
+    const [selectedDate, setSelectedDate] = useState(null); // For calendar selection
+    const [calendarDate, setCalendarDate] = useState(new Date()); // For calendar navigation
     const [showStats, setShowStats] = useState(false);
     const [statsPlayerFilter, setStatsPlayerFilter] = useState('');
     const [statsDateFrom, setStatsDateFrom] = useState('');
     const [statsDateTo, setStatsDateTo] = useState('');
-    const [statsWeekFilter, setStatsWeekFilter] = useState('');
-    const [statsResultFilter, setStatsResultFilter] = useState('');
 
     // New state for the welcome screen
     const [showWelcomeScreen, setShowWelcomeScreen] = useState(true);
@@ -137,6 +139,7 @@ function App() {
 
     useEffect(() => {
         const matchesCollectionRef = collection(db, `artifacts/${appId}/matches`);
+        const deletedMatchesCollectionRef = collection(db, `artifacts/${appId}/deletedMatches`);
         const dailySummariesCollectionRef = collection(db, `artifacts/${appId}/dailySummaries`);
 
         const unsubscribeMatches = onSnapshot(matchesCollectionRef, (matchesSnapshot) => {
@@ -150,73 +153,91 @@ function App() {
                 comment: doc.data().comment || '',
                 loadedBy: doc.data().loadedBy || 'Desconocido',
                 timestamp: doc.data().timestamp || Timestamp.now(),
-                editHistory: doc.data().editHistory || []
+                editHistory: doc.data().editHistory || [],
+                isDeleted: false
             }));
             fetchedMatches.sort((a, b) => new Date(b.date) - new Date(a.date)); 
             setMatches(fetchedMatches);
             setErrorMessage(''); 
-
-            const unsubscribeDailySummaries = onSnapshot(dailySummariesCollectionRef, (dailySummariesSnapshot) => {
-                const fetchedDailySummaries = {};
-                dailySummariesSnapshot.docs.forEach(doc => {
-                    fetchedDailySummaries[doc.id] = doc.data().players || {};
-                });
-
-                const grouped = {};
-                fetchedMatches.forEach(match => {
-                    const date = match.date || new Date().toISOString().split('T')[0];
-                    if (!grouped[date]) {
-                        grouped[date] = {
-                            matches: [],
-                            summary: {}
-                        };
-                    }
-                    grouped[date].matches.push(match);
-
-                    const allPlayersInMatch = [...(match.team1Players || []), ...(match.team2Players || [])];
-                    allPlayersInMatch.forEach(player => {
-                        if (!player) return; // Skip invalid players
-                        if (!grouped[date].summary[player]) {
-                            grouped[date].summary[player] = { played: 0, won: 0, lost: 0, paid: false };
-                        }
-                        grouped[date].summary[player].played++;
-                        if (fetchedDailySummaries[date] && fetchedDailySummaries[date][player]) {
-                            grouped[date].summary[player].paid = fetchedDailySummaries[date][player].paid;
-                        }
-                    });
-
-                    if (match.winner && match.winner !== 'Empate' && match.winner !== 'N/A') {
-                        if (match.winner.startsWith('Equipo 1')) {
-                            (match.team1Players || []).forEach(player => {
-                                if (player) grouped[date].summary[player].won++;
-                            });
-                            (match.team2Players || []).forEach(player => {
-                                if (player) grouped[date].summary[player].lost++;
-                            });
-                        } else if (match.winner.startsWith('Equipo 2')) {
-                            (match.team2Players || []).forEach(player => {
-                                if (player) grouped[date].summary[player].won++;
-                            });
-                            (match.team1Players || []).forEach(player => {
-                                if (player) grouped[date].summary[player].lost++;
-                            });
-                        }
-                    }
-                });
-                setGroupedMatches(grouped);
-            }, (error) => {
-                console.error("Error fetching daily summaries:", error);
-                setErrorMessage("Error al cargar los resumenes diarios.");
-            });
-
-            return () => unsubscribeDailySummaries();
         }, (error) => {
             console.error("Error fetching matches:", error);
             setErrorMessage("Error al cargar los partidos. Por favor, intenta de nuevo.");
         });
 
-        return () => unsubscribeMatches();
-    }, []); 
+        const unsubscribeDeletedMatches = onSnapshot(deletedMatchesCollectionRef, (deletedSnapshot) => {
+            const fetchedDeletedMatches = deletedSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data().originalMatch,
+                deletedBy: doc.data().deletedBy || 'Desconocido',
+                deletedTimestamp: doc.data().deletedTimestamp || Timestamp.now(),
+                isDeleted: true
+            }));
+            setDeletedMatches(fetchedDeletedMatches);
+        }, (error) => {
+            console.error("Error fetching deleted matches:", error);
+            setErrorMessage("Error al cargar los partidos eliminados. Por favor, intenta de nuevo.");
+        });
+
+        const unsubscribeDailySummaries = onSnapshot(dailySummariesCollectionRef, (dailySummariesSnapshot) => {
+            const fetchedDailySummaries = {};
+            dailySummariesSnapshot.docs.forEach(doc => {
+                fetchedDailySummaries[doc.id] = doc.data().players || {};
+            });
+
+            const grouped = {};
+            const allMatches = [...matches, ...deletedMatches];
+            allMatches.forEach(match => {
+                const date = match.date || new Date().toISOString().split('T')[0];
+                if (!grouped[date]) {
+                    grouped[date] = {
+                        matches: [],
+                        summary: {}
+                    };
+                }
+                grouped[date].matches.push(match);
+
+                const allPlayersInMatch = [...(match.team1Players || []), ...(match.team2Players || [])];
+                allPlayersInMatch.forEach(player => {
+                    if (!player) return;
+                    if (!grouped[date].summary[player]) {
+                        grouped[date].summary[player] = { played: 0, won: 0, lost: 0, paid: false };
+                    }
+                    grouped[date].summary[player].played++;
+                    if (fetchedDailySummaries[date] && fetchedDailySummaries[date][player]) {
+                        grouped[date].summary[player].paid = fetchedDailySummaries[date][player].paid;
+                    }
+                });
+
+                if (!match.isDeleted && match.winner && match.winner !== 'Empate' && match.winner !== 'N/A') {
+                    if (match.winner.startsWith('Equipo 1')) {
+                        (match.team1Players || []).forEach(player => {
+                            if (player) grouped[date].summary[player].won++;
+                        });
+                        (match.team2Players || []).forEach(player => {
+                            if (player) grouped[date].summary[player].lost++;
+                        });
+                    } else if (match.winner.startsWith('Equipo 2')) {
+                        (match.team2Players || []).forEach(player => {
+                            if (player) grouped[date].summary[player].won++;
+                        });
+                        (match.team1Players || []).forEach(player => {
+                            if (player) grouped[date].summary[player].lost++;
+                        });
+                    }
+                }
+            });
+            setGroupedMatches(grouped);
+        }, (error) => {
+            console.error("Error fetching daily summaries:", error);
+            setErrorMessage("Error al cargar los resumenes diarios.");
+        });
+
+        return () => {
+            unsubscribeMatches();
+            unsubscribeDeletedMatches();
+            unsubscribeDailySummaries();
+        };
+    }, [matches, deletedMatches]);
 
     const handlePlayerDropdownChange = (e, playerKey, isEdit = false) => {
         const { value } = e.target;
@@ -348,7 +369,8 @@ function App() {
                 winner,
                 loadedBy: loadedByPlayer,
                 timestamp: Timestamp.now(),
-                editHistory: []
+                editHistory: [],
+                isDeleted: false
             });
             setNewMatch({
                 team1Player1: { value: '', type: 'dropdown' },
@@ -376,7 +398,10 @@ function App() {
         if (!userId || !matchToDelete) return;
         try {
             await addDoc(collection(db, `artifacts/${appId}/deletedMatches`), {
-                originalMatch: matchToDelete,
+                originalMatch: {
+                    ...matchToDelete,
+                    isDeleted: true
+                },
                 deletedBy: loadedByPlayer,
                 deletedTimestamp: Timestamp.now()
             });
@@ -510,7 +535,8 @@ function App() {
                 date,
                 comment,
                 winner,
-                editHistory: [...(editedMatch.editHistory || []), newEditEntry] 
+                editHistory: [...(editedMatch.editHistory || []), newEditEntry],
+                isDeleted: false
             });
             setEditingMatchId(null);
             setEditedMatch(null);
@@ -521,21 +547,8 @@ function App() {
         }
     };
 
-    const toggleDateExpansion = (date) => {
-        if (!date) return;
-        setExpandedDates(prev => {
-            const newSet = new Set(prev);
-            if (newSet.has(date)) {
-                newSet.delete(date);
-            } else {
-                newSet.add(date);
-            }
-            return newSet;
-        });
-    };
-
     const downloadMatchHistory = () => {
-        if (matches.length === 0) {
+        if (matches.length === 0 && deletedMatches.length === 0) {
             setErrorMessage("No hay partidos para descargar.");
             return;
         }
@@ -557,10 +570,14 @@ function App() {
             "Equipo 2 - Gano?",
             "Comentario",
             "Cargado por",
+            "Estado",
+            "Eliminado por",
+            "Fecha de Eliminacion",
             "Historial de Ediciones"
         ];
 
-        const rows = matches.map((match, index) => {
+        const allMatches = [...matches, ...deletedMatches];
+        const rows = allMatches.map((match, index) => {
             const team1Player1Paid = groupedMatches[match.date]?.summary[match.team1Players[0]]?.paid ? 'Si' : 'No';
             const team1Player2Paid = groupedMatches[match.date]?.summary[match.team1Players[1]]?.paid ? 'Si' : 'No';
             const team2Player1Paid = groupedMatches[match.date]?.summary[match.team2Players[0]]?.paid ? 'Si' : 'No';
@@ -569,11 +586,14 @@ function App() {
             const score1 = match.scoreTeam1 !== '' ? match.scoreTeam1 : 'N/A';
             const score2 = match.scoreTeam2 !== '' ? match.scoreTeam2 : 'N/A';
 
-            const team1Won = match.winner.startsWith('Equipo 1') ? 'Si' : 'No';
-            const team2Won = match.winner.startsWith('Equipo 2') ? 'Si' : 'No';
+            const team1Won = match.winner && match.winner.startsWith('Equipo 1') ? 'Si' : 'No';
+            const team2Won = match.winner && match.winner.startsWith('Equipo 2') ? 'Si' : 'No';
             
             const loadedBy = match.loadedBy || 'Desconocido';
             const comment = match.comment || '';
+            const status = match.isDeleted ? 'Dado de Baja' : 'Activo';
+            const deletedBy = match.isDeleted ? match.deletedBy || 'Desconocido' : '';
+            const deletedTimestamp = match.isDeleted && match.deletedTimestamp ? new Date(match.deletedTimestamp.toDate()).toLocaleString() : '';
             
             const editHistoryString = (match.editHistory || [])
                 .map(edit => `${edit.editedBy} (${new Date(edit.editedTimestamp.toDate()).toLocaleString()}): ${edit.changes.join(', ')}`)
@@ -596,6 +616,9 @@ function App() {
                 team2Won,
                 comment,
                 loadedBy,
+                status,
+                deletedBy,
+                deletedTimestamp,
                 editHistoryString
             ].map(item => `"${String(item).replace(/"/g, '""')}"`).join(',');
         });
@@ -668,27 +691,13 @@ function App() {
         });
         setEditingMatchId(null);
         setEditedMatch(null);
-        setExpandedDates(new Set());
+        setSelectedDate(null);
         setShowStats(false);
     };
 
     const handleShowStats = () => {
         setShowStats(true);
         setShowWelcomeScreen(false);
-    };
-
-    const getWeekNumber = (date) => {
-        try {
-            const d = new Date(date);
-            if (isNaN(d.getTime())) return 0;
-            d.setHours(0, 0, 0, 0);
-            d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-            const yearStart = new Date(d.getFullYear(), 0, 1);
-            return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
-        } catch (e) {
-            console.error("Error calculating week number:", e);
-            return 0;
-        }
     };
 
     const filteredMatches = matches.filter(match => {
@@ -707,58 +716,48 @@ function App() {
             matchesDate = match.date <= statsDateTo;
         }
 
-        let matchesWeek = true;
-        if (statsWeekFilter) {
-            const [year, week] = statsWeekFilter.split('-W');
-            const matchWeek = getWeekNumber(match.date);
-            matchesWeek = match.date.startsWith(year) && matchWeek === parseInt(week);
-        }
-
-        let matchesResult = true;
-        if (statsResultFilter && statsPlayerFilter) {
-            if (statsResultFilter === 'won') {
-                matchesResult = match.winner !== 'N/A' && match.winner !== 'Empate' && 
-                    ((match.winner.startsWith('Equipo 1') && match.team1Players.includes(statsPlayerFilter)) || 
-                     (match.winner.startsWith('Equipo 2') && match.team2Players.includes(statsPlayerFilter)));
-            } else if (statsResultFilter === 'lost') {
-                matchesResult = match.winner !== 'N/A' && match.winner !== 'Empate' && 
-                    ((match.winner.startsWith('Equipo 1') && match.team2Players.includes(statsPlayerFilter)) || 
-                     (match.winner.startsWith('Equipo 2') && match.team1Players.includes(statsPlayerFilter)));
-            } else if (statsResultFilter === 'played') {
-                matchesResult = true;
-            }
-        }
-
-        return matchesPlayer && matchesDate && matchesWeek && matchesResult;
+        return matchesPlayer && matchesDate;
     });
 
     const statsSummary = {};
-    filteredMatches.forEach(match => {
-        if (!match || !match.team1Players || !match.team2Players) return;
-        const allPlayers = [...match.team1Players, ...match.team2Players];
-        allPlayers.forEach(player => {
-            if (!player) return;
-            if (!statsSummary[player]) {
-                statsSummary[player] = { played: 0, won: 0, lost: 0 };
-            }
-            statsSummary[player].played++;
-            if (match.winner && match.winner !== 'Empate' && match.winner !== 'N/A') {
-                if (match.winner.startsWith('Equipo 1')) {
-                    if (match.team1Players.includes(player)) {
-                        statsSummary[player].won++;
-                    } else if (match.team2Players.includes(player)) {
-                        statsSummary[player].lost++;
-                    }
-                } else if (match.winner.startsWith('Equipo 2')) {
-                    if (match.team2Players.includes(player)) {
-                        statsSummary[player].won++;
-                    } else if (match.team1Players.includes(player)) {
-                        statsSummary[player].lost++;
+    if (statsPlayerFilter) {
+        statsSummary[statsPlayerFilter] = { played: 0, won: 0, lost: 0 };
+        filteredMatches.forEach(match => {
+            if (!match || !match.team1Players || !match.team2Players) return;
+            if (match.team1Players.includes(statsPlayerFilter) || match.team2Players.includes(statsPlayerFilter)) {
+                statsSummary[statsPlayerFilter].played++;
+                if (match.winner && match.winner !== 'Empate' && match.winner !== 'N/A') {
+                    if (match.winner.startsWith('Equipo 1')) {
+                        if (match.team1Players.includes(statsPlayerFilter)) {
+                            statsSummary[statsPlayerFilter].won++;
+                        } else if (match.team2Players.includes(statsPlayerFilter)) {
+                            statsSummary[statsPlayerFilter].lost++;
+                        }
+                    } else if (match.winner.startsWith('Equipo 2')) {
+                        if (match.team2Players.includes(statsPlayerFilter)) {
+                            statsSummary[statsPlayerFilter].won++;
+                        } else if (match.team1Players.includes(statsPlayerFilter)) {
+                            statsSummary[statsPlayerFilter].lost++;
+                        }
                     }
                 }
             }
         });
-    });
+    }
+
+    const tileContent = ({ date, view }) => {
+        if (view !== 'month') return null;
+        const dateStr = date.toISOString().split('T')[0];
+        const matchCount = groupedMatches[dateStr]?.matches.length || 0;
+        return matchCount > 0 ? (
+            <p className="text-xs text-blue-600 font-bold">{matchCount} partido{matchCount > 1 ? 's' : ''}</p>
+        ) : null;
+    };
+
+    const handleCalendarChange = (date) => {
+        setCalendarDate(date);
+        setSelectedDate(date.toISOString().split('T')[0]);
+    };
 
     if (loading) {
         return (
@@ -806,21 +805,6 @@ function App() {
                                             </select>
                                         </div>
                                         <div>
-                                            <label className="block text-gray-700 text-sm font-bold mb-2">Resultado:</label>
-                                            <select
-                                                value={statsResultFilter}
-                                                onChange={(e) => setStatsResultFilter(e.target.value)}
-                                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                            >
-                                                <option value="">Todos</option>
-                                                <option value="played">Jugados</option>
-                                                <option value="won">Ganados</option>
-                                                <option value="lost">Perdidos</option>
-                                            </select>
-                                        </div>
-                                    </div>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                        <div>
                                             <label className="block text-gray-700 text-sm font-bold mb-2">Fecha Desde:</label>
                                             <input
                                                 type="date"
@@ -839,31 +823,18 @@ function App() {
                                             />
                                         </div>
                                     </div>
-                                    <div>
-                                        <label className="block text-gray-700 text-sm font-bold mb-2">Semana (YYYY-WW):</label>
-                                        <input
-                                            type="week"
-                                            value={statsWeekFilter}
-                                            onChange={(e) => setStatsWeekFilter(e.target.value)}
-                                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                        />
-                                    </div>
                                 </div>
 
                                 <h2 className="text-2xl font-semibold text-purple-700 mb-4">Resumen de Estadisticas</h2>
-                                {Object.keys(statsSummary).length === 0 ? (
-                                    <p className="text-gray-500">No hay datos de resumen para los filtros seleccionados.</p>
-                                ) : (
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-                                        {Object.entries(statsSummary).map(([player, stats]) => (
-                                            <div key={player} className="bg-blue-100 p-3 rounded-lg shadow-sm border border-blue-200">
-                                                <p className="font-bold text-blue-800">{player}</p>
-                                                <p className="text-gray-700">Jugados: {stats.played}</p>
-                                                <p className="text-green-700">Ganados: {stats.won}</p>
-                                                <p className="text-red-700">Perdidos: {stats.lost}</p>
-                                            </div>
-                                        ))}
+                                {statsPlayerFilter && Object.keys(statsSummary).length > 0 ? (
+                                    <div className="bg-blue-100 p-3 rounded-lg shadow-sm border border-blue-200 mb-6">
+                                        <p className="font-bold text-blue-800">{statsPlayerFilter}</p>
+                                        <p className="text-gray-700">Jugados: {statsSummary[statsPlayerFilter].played}</p>
+                                        <p className="text-green-700">Ganados: {statsSummary[statsPlayerFilter].won}</p>
+                                        <p className="text-red-700">Perdidos: {statsSummary[statsPlayerFilter].lost}</p>
                                     </div>
+                                ) : (
+                                    <p className="text-gray-500">Selecciona un jugador para ver su resumen.</p>
                                 )}
 
                                 <h2 className="text-2xl font-semibold text-purple-700 mb-4">Lista de Partidos</h2>
@@ -880,7 +851,7 @@ function App() {
                                                     Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuacion no registrada'}
                                                 </p>
                                                 <p className="text-sm text-green-700 font-semibold mb-2">
-                                                    Ganador: {match.winner !== 'N/A' ? match.winner : 'No determinado'}
+                                                    Ganador: {match.winner || 'No determinado'}
                                                 </p>
                                                 {match.comment && (
                                                     <p className="text-sm text-gray-600 mb-2">Comentario: {match.comment}</p>
@@ -1138,176 +1109,185 @@ function App() {
                         </button>
                     </div>
 
-                    {Object.keys(groupedMatches).length === 0 ? (
-                        <p className="text-center text-gray-500">No hay resumenes de partidos disponibles.</p>
-                    ) : (
-                        Object.entries(groupedMatches).sort(([dateA], [dateB]) => new Date(dateB) - new Date(dateA)).map(([date, data]) => (
-                            <div key={date} className="bg-white rounded-xl shadow-lg p-6 w-full max-w-4xl mb-8 border border-purple-200">
-                                <button 
-                                    onClick={() => toggleDateExpansion(date)}
-                                    className="w-full flex justify-between items-center text-3xl font-bold text-purple-800 mb-4 text-center bg-purple-100 p-3 rounded-lg hover:bg-purple-200 transition-colors duration-200"
-                                >
-                                    <span>Fecha: {date} ({data.matches.length} partidos)</span>
-                                    {expandedDates.has(date) ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
-                                </button>
-                                
-                                {expandedDates.has(date) && (
-                                    <>
-                                        <h4 className="text-xl font-semibold text-blue-700 mb-3">Partidos del Dia:</h4>
-                                        <div className="grid grid-cols-1 gap-3 mb-6">
-                                            {data.matches.map((match) => (
-                                                <div key={match.id} className="bg-gray-50 p-3 rounded-lg shadow-sm border border-gray-100">
-                                                    {editingMatchId === match.id ? (
-                                                        <div>
-                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                                                <div>
-                                                                    <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 1:</label>
-                                                                    {renderPlayerInput(editedMatch.team1Player1, setEditedMatch, 'team1Player1', true)}
-                                                                    {renderPlayerInput(editedMatch.team1Player2, setEditedMatch, 'team1Player2', true)}
-                                                                </div>
-                                                                <div>
-                                                                    <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 2:</label>
-                                                                    {renderPlayerInput(editedMatch.team2Player1, setEditedMatch, 'team2Player1', true)}
-                                                                    {renderPlayerInput(editedMatch.team2Player2, setEditedMatch, 'team2Player2', true)}
-                                                                </div>
-                                                            </div>
-                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                                                <div>
-                                                                    <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Eq. 1 (Opcional):</label>
-                                                                    <input
-                                                                        type="number"
-                                                                        name="scoreTeam1"
-                                                                        value={editedMatch.scoreTeam1}
-                                                                        onChange={handleEditedMatchOtherInputChange}
-                                                                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                                                    />
-                                                                </div>
-                                                                <div>
-                                                                    <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Eq. 2 (Opcional):</label>
-                                                                    <input
-                                                                        type="number"
-                                                                        name="scoreTeam2"
-                                                                        value={editedMatch.scoreTeam2}
-                                                                        onChange={handleEditedMatchOtherInputChange}
-                                                                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                                                    />
-                                                                </div>
-                                                                <div>
-                                                                    <label className="block text-gray-700 text-sm font-bold mb-2">Fecha:</label>
-                                                                    <input
-                                                                        type="date"
-                                                                        name="date"
-                                                                        value={editedMatch.date}
-                                                                        onChange={handleEditedMatchOtherInputChange}
-                                                                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                                                    />
-                                                                </div>
-                                                            </div>
-                                                            <div className="mb-4">
-                                                                <label className="block text-gray-700 text-sm font-bold mb-2">Comentario (Opcional):</label>
-                                                                <textarea
-                                                                    name="comment"
-                                                                    value={editedMatch.comment}
-                                                                    onChange={handleEditedMatchOtherInputChange}
-                                                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                                                    placeholder="Escribe un comentario sobre el partido"
-                                                                />
-                                                            </div>
-                                                            <div className="flex justify-end space-x-2">
-                                                                <button
-                                                                    onClick={saveEditedMatch}
-                                                                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                                                                >
-                                                                    <Save className="mr-1" size={18} /> Guardar
-                                                                </button>
-                                                                <button
-                                                                    onClick={cancelEditing}
-                                                                    className="bg-gray-400 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                                                                >
-                                                                    <XCircle className="mr-1" size={18} /> Cancelar
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    ) : (
-                                                        <div>
-                                                            <p className="text-md font-semibold text-blue-800 mb-1">
-                                                                {(match.team1Players || []).join(' y ') || 'N/A'} vs {(match.team2Players || []).join(' y ') || 'N/A'}
-                                                            </p>
-                                                            <p className="text-lg font-bold text-purple-600 mb-1">
-                                                                Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuacion no registrada'}
-                                                            </p>
-                                                            <p className="text-sm text-green-700 font-semibold mb-2">
-                                                                Ganador: {match.winner || 'No determinado'}
-                                                            </p>
-                                                            {match.comment && (
-                                                                <p className="text-sm text-gray-600 mb-2">Comentario: {match.comment}</p>
-                                                            )}
-                                                            <p className="text-xs text-gray-500 mt-1">
-                                                                Cargado por: <span className="font-semibold">{match.loadedBy || 'Desconocido'}</span> el <span className="font-semibold">{match.timestamp ? new Date(match.timestamp.toDate()).toLocaleString() : 'N/A'}</span>
-                                                            </p>
-                                                            {match.editHistory && match.editHistory.length > 0 && (
-                                                                <div className="text-xs text-gray-500 mt-1">
-                                                                    Historial de Ediciones:
-                                                                    <ul className="list-disc list-inside ml-2">
-                                                                        {match.editHistory.map((edit, idx) => (
-                                                                            <li key={idx}>
-                                                                                <span className="font-semibold">{edit.editedBy}</span> el <span className="font-semibold">{edit.editedTimestamp ? new Date(edit.editedTimestamp.toDate()).toLocaleString() : 'N/A'}</span>: {edit.changes.join(', ')}
-                                                                            </li>
-                                                                        ))}
-                                                                    </ul>
-                                                                </div>
-                                                            )}
-                                                            <div className="flex justify-end space-x-2">
-                                                                <button
-                                                                    onClick={() => startEditing(match)}
-                                                                    className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded-full text-sm focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                                                                >
-                                                                    <Edit className="mr-1" size={16} /> Editar
-                                                                </button>
-                                                                <button
-                                                                    onClick={() => confirmDeleteMatch(match)}
-                                                                    className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded-full text-sm focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                                                                >
-                                                                    <Trash2 className="mr-1" size={16} /> Eliminar
-                                                                </button>
-                                                            </div>
-                                                        </div>
-                                                    )}
-                                                </div>
-                                            ))}
-                                        </div>
+                    <div className="mb-8">
+                        <Calendar
+                            onChange={handleCalendarChange}
+                            value={calendarDate}
+                            tileContent={tileContent}
+                            className="w-full border border-gray-200 rounded-lg shadow-sm bg-white p-4"
+                        />
+                    </div>
 
-                                        <h4 className="text-xl font-semibold text-blue-700 mb-3">Resumen de Jugadores:</h4>
-                                        {Object.keys(data.summary).length === 0 ? (
-                                            <p className="text-gray-500">No hay datos de resumen para esta fecha.</p>
-                                        ) : (
-                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                                {Object.entries(data.summary).map(([player, stats]) => (
-                                                    <div key={player} className="bg-blue-100 p-3 rounded-lg shadow-sm border border-blue-200 flex justify-between items-center">
-                                                        <div>
-                                                            <p className="font-bold text-blue-800">{player}</p>
-                                                            <p className="text-gray-700">Jugados: {stats.played}</p>
-                                                            <p className="text-green-700">Ganados: {stats.won}</p>
-                                                            <p className="text-red-700">Perdidos: {stats.lost}</p>
-                                                        </div>
-                                                        <div className="flex items-center">
-                                                            <label htmlFor={`paid-${date}-${player}`} className="mr-2 text-gray-700">Pago:</label>
-                                                            <input
-                                                                type="checkbox"
-                                                                id={`paid-${date}-${player}`}
-                                                                checked={stats.paid || false}
-                                                                onChange={(e) => handlePaidChange(date, player, e.target.checked)}
-                                                                className="form-checkbox h-5 w-5 text-green-600 rounded focus:ring-green-500"
-                                                            />
-                                                        </div>
+                    {selectedDate && groupedMatches[selectedDate] ? (
+                        <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-4xl mb-8 border border-purple-200">
+                            <h3 className="text-3xl font-bold text-purple-800 mb-4">Fecha: {selectedDate} ({groupedMatches[selectedDate].matches.length} partidos)</h3>
+                            <h4 className="text-xl font-semibold text-blue-700 mb-3">Partidos del Dia:</h4>
+                            <div className="grid grid-cols-1 gap-3 mb-6">
+                                {groupedMatches[selectedDate].matches.map((match) => (
+                                    <div
+                                        key={match.id}
+                                        className={`p-3 rounded-lg shadow-sm border ${match.isDeleted ? 'bg-gray-200 border-red-300 text-red-700' : 'bg-gray-50 border-gray-100'}`}
+                                    >
+                                        {editingMatchId === match.id ? (
+                                            <div>
+                                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                                    <div>
+                                                        <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 1:</label>
+                                                        {renderPlayerInput(editedMatch.team1Player1, setEditedMatch, 'team1Player1', true)}
+                                                        {renderPlayerInput(editedMatch.team1Player2, setEditedMatch, 'team1Player2', true)}
                                                     </div>
-                                                ))}
+                                                    <div>
+                                                        <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 2:</label>
+                                                        {renderPlayerInput(editedMatch.team2Player1, setEditedMatch, 'team2Player1', true)}
+                                                        {renderPlayerInput(editedMatch.team2Player2, setEditedMatch, 'team2Player2', true)}
+                                                    </div>
+                                                </div>
+                                                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                                    <div>
+                                                        <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Eq. 1 (Opcional):</label>
+                                                        <input
+                                                            type="number"
+                                                            name="scoreTeam1"
+                                                            value={editedMatch.scoreTeam1}
+                                                            onChange={handleEditedMatchOtherInputChange}
+                                                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Eq. 2 (Opcional):</label>
+                                                        <input
+                                                            type="number"
+                                                            name="scoreTeam2"
+                                                            value={editedMatch.scoreTeam2}
+                                                            onChange={handleEditedMatchOtherInputChange}
+                                                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                                        />
+                                                    </div>
+                                                    <div>
+                                                        <label className="block text-gray-700 text-sm font-bold mb-2">Fecha:</label>
+                                                        <input
+                                                            type="date"
+                                                            name="date"
+                                                            value={editedMatch.date}
+                                                            onChange={handleEditedMatchOtherInputChange}
+                                                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                                        />
+                                                    </div>
+                                                </div>
+                                                <div className="mb-4">
+                                                    <label className="block text-gray-700 text-sm font-bold mb-2">Comentario (Opcional):</label>
+                                                    <textarea
+                                                        name="comment"
+                                                        value={editedMatch.comment}
+                                                        onChange={handleEditedMatchOtherInputChange}
+                                                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                                        placeholder="Escribe un comentario sobre el partido"
+                                                    />
+                                                </div>
+                                                <div className="flex justify-end space-x-2">
+                                                    <button
+                                                        onClick={saveEditedMatch}
+                                                        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
+                                                    >
+                                                        <Save className="mr-1" size={18} /> Guardar
+                                                    </button>
+                                                    <button
+                                                        onClick={cancelEditing}
+                                                        className="bg-gray-400 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
+                                                    >
+                                                        <XCircle className="mr-1" size={18} /> Cancelar
+                                                    </button>
+                                                </div>
+                                            </div>
+                                        ) : (
+                                            <div>
+                                                <p className="text-md font-semibold mb-1">
+                                                    {(match.team1Players || []).join(' y ') || 'N/A'} vs {(match.team2Players || []).join(' y ') || 'N/A'}
+                                                    {match.isDeleted && (
+                                                        <span className="ml-2 font-bold text-red-700">Dado de Baja</span>
+                                                    )}
+                                                </p>
+                                                <p className="text-lg font-bold text-purple-600 mb-1">
+                                                    Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuacion no registrada'}
+                                                </p>
+                                                <p className="text-sm text-green-700 font-semibold mb-2">
+                                                    Ganador: {match.winner || 'No determinado'}
+                                                </p>
+                                                {match.comment && (
+                                                    <p className="text-sm text-gray-600 mb-2">Comentario: {match.comment}</p>
+                                                )}
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    Cargado por: <span className="font-semibold">{match.loadedBy || 'Desconocido'}</span> el <span className="font-semibold">{match.timestamp ? new Date(match.timestamp.toDate()).toLocaleString() : 'N/A'}</span>
+                                                </p>
+                                                {match.isDeleted && (
+                                                    <p className="text-xs text-red-500 mt-1">
+                                                        Eliminado por: <span className="font-semibold">{match.deletedBy}</span> el <span className="font-semibold">{match.deletedTimestamp ? new Date(match.deletedTimestamp.toDate()).toLocaleString() : 'N/A'}</span>
+                                                    </p>
+                                                )}
+                                                {match.editHistory && match.editHistory.length > 0 && (
+                                                    <div className="text-xs text-gray-500 mt-1">
+                                                        Historial de Ediciones:
+                                                        <ul className="list-disc list-inside ml-2">
+                                                            {match.editHistory.map((edit, idx) => (
+                                                                <li key={idx}>
+                                                                    <span className="font-semibold">{edit.editedBy}</span> el <span className="font-semibold">{edit.editedTimestamp ? new Date(edit.editedTimestamp.toDate()).toLocaleString() : 'N/A'}</span>: {edit.changes.join(', ')}
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                                {!match.isDeleted && (
+                                                    <div className="flex justify-end space-x-2">
+                                                        <button
+                                                            onClick={() => startEditing(match)}
+                                                            className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded-full text-sm focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
+                                                        >
+                                                            <Edit className="mr-1" size={16} /> Editar
+                                                        </button>
+                                                        <button
+                                                            onClick={() => confirmDeleteMatch(match)}
+                                                            className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded-full text-sm focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
+                                                        >
+                                                            <Trash2 className="mr-1" size={16} /> Eliminar
+                                                        </button>
+                                                    </div>
+                                                )}
                                             </div>
                                         )}
-                                    </>
-                                )}
+                                    </div>
+                                ))}
                             </div>
-                        ))
+
+                            <h4 className="text-xl font-semibold text-blue-700 mb-3">Resumen de Jugadores:</h4>
+                            {Object.keys(groupedMatches[selectedDate].summary).length === 0 ? (
+                                <p className="text-gray-500">No hay datos de resumen para esta fecha.</p>
+                            ) : (
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                    {Object.entries(groupedMatches[selectedDate].summary).map(([player, stats]) => (
+                                        <div key={player} className="bg-blue-100 p-3 rounded-lg shadow-sm border border-blue-200 flex justify-between items-center">
+                                            <div>
+                                                <p className="font-bold text-blue-800">{player}</p>
+                                                <p className="text-gray-700">Jugados: {stats.played}</p>
+                                                <p className="text-green-700">Ganados: {stats.won}</p>
+                                                <p className="text-red-700">Perdidos: {stats.lost}</p>
+                                            </div>
+                                            <div className="flex items-center">
+                                                <label htmlFor={`paid-${selectedDate}-${player}`} className="mr-2 text-gray-700">Pago:</label>
+                                                <input
+                                                    type="checkbox"
+                                                    id={`paid-${selectedDate}-${player}`}
+                                                    checked={stats.paid || false}
+                                                    onChange={(e) => handlePaidChange(selectedDate, player, e.target.checked)}
+                                                    className="form-checkbox h-5 w-5 text-green-600 rounded focus:ring-green-500"
+                                                />
+                                            </div>
+                                        </div>
+                                    ))}
+                                </div>
+                            )}
+                        </div>
+                    ) : (
+                        <p className="text-center text-gray-500">Selecciona una fecha en el calendario para ver los partidos.</p>
                     )}
                 </div>
 
