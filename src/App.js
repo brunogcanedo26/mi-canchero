@@ -13,8 +13,8 @@ import {
     Timestamp
 } from 'firebase/firestore';
 import { PlusCircle, Trash2, Edit, Save, XCircle, Download, LogIn, LogOut, BarChart2 } from 'lucide-react';
-import Calendar from 'react-calendar'; // Import react-calendar
-import './styles/Calendar.css'; // Import default styles
+import Calendar from 'react-calendar';
+import './styles/Calendar.css'; // Usar archivo CSS local para evitar el error en Vercel
 
 // Firebase configuration and initialization
 const firebaseConfig = process.env.REACT_APP_FIREBASE_CONFIG ? JSON.parse(process.env.REACT_APP_FIREBASE_CONFIG) : {};
@@ -78,7 +78,7 @@ class ErrorBoundary extends Component {
 
 function App() {
     const [matches, setMatches] = useState([]);
-    const [deletedMatches, setDeletedMatches] = useState([]); // New state for deleted matches
+    const [deletedMatches, setDeletedMatches] = useState([]);
     const [newMatch, setNewMatch] = useState({
         team1Player1: { value: '', type: 'dropdown' },
         team1Player2: { value: '', type: 'dropdown' },
@@ -97,8 +97,8 @@ function App() {
     const [matchToDelete, setMatchToDelete] = useState(null);
     const [errorMessage, setErrorMessage] = useState('');
     const [groupedMatches, setGroupedMatches] = useState({}); 
-    const [selectedDate, setSelectedDate] = useState(null); // For calendar selection
-    const [calendarDate, setCalendarDate] = useState(new Date()); // For calendar navigation
+    const [selectedDate, setSelectedDate] = useState(null);
+    const [calendarDate, setCalendarDate] = useState(new Date());
     const [showStats, setShowStats] = useState(false);
     const [statsPlayerFilter, setStatsPlayerFilter] = useState('');
     const [statsDateFrom, setStatsDateFrom] = useState('');
@@ -194,35 +194,39 @@ function App() {
                         summary: {}
                     };
                 }
+                // Incluir todos los partidos (activos y eliminados) en la lista de partidos
                 grouped[date].matches.push(match);
 
-                const allPlayersInMatch = [...(match.team1Players || []), ...(match.team2Players || [])];
-                allPlayersInMatch.forEach(player => {
-                    if (!player) return;
-                    if (!grouped[date].summary[player]) {
-                        grouped[date].summary[player] = { played: 0, won: 0, lost: 0, paid: false };
-                    }
-                    grouped[date].summary[player].played++;
-                    if (fetchedDailySummaries[date] && fetchedDailySummaries[date][player]) {
-                        grouped[date].summary[player].paid = fetchedDailySummaries[date][player].paid;
-                    }
-                });
+                // Solo contabilizar estadísticas para partidos no eliminados
+                if (!match.isDeleted) {
+                    const allPlayersInMatch = [...(match.team1Players || []), ...(match.team2Players || [])];
+                    allPlayersInMatch.forEach(player => {
+                        if (!player) return;
+                        if (!grouped[date].summary[player]) {
+                            grouped[date].summary[player] = { played: 0, won: 0, lost: 0, paid: false };
+                        }
+                        grouped[date].summary[player].played++;
+                        if (fetchedDailySummaries[date] && fetchedDailySummaries[date][player]) {
+                            grouped[date].summary[player].paid = fetchedDailySummaries[date][player].paid;
+                        }
+                    });
 
-                if (!match.isDeleted && match.winner && match.winner !== 'Empate' && match.winner !== 'N/A') {
-                    if (match.winner.startsWith('Equipo 1')) {
-                        (match.team1Players || []).forEach(player => {
-                            if (player) grouped[date].summary[player].won++;
-                        });
-                        (match.team2Players || []).forEach(player => {
-                            if (player) grouped[date].summary[player].lost++;
-                        });
-                    } else if (match.winner.startsWith('Equipo 2')) {
-                        (match.team2Players || []).forEach(player => {
-                            if (player) grouped[date].summary[player].won++;
-                        });
-                        (match.team1Players || []).forEach(player => {
-                            if (player) grouped[date].summary[player].lost++;
-                        });
+                    if (match.winner && match.winner !== 'Empate' && match.winner !== 'N/A') {
+                        if (match.winner.startsWith('Equipo 1')) {
+                            (match.team1Players || []).forEach(player => {
+                                if (player) grouped[date].summary[player].won++;
+                            });
+                            (match.team2Players || []).forEach(player => {
+                                if (player) grouped[date].summary[player].lost++;
+                            });
+                        } else if (match.winner.startsWith('Equipo 2')) {
+                            (match.team2Players || []).forEach(player => {
+                                if (player) grouped[date].summary[player].won++;
+                            });
+                            (match.team1Players || []).forEach(player => {
+                                if (player) grouped[date].summary[player].lost++;
+                            });
+                        }
                     }
                 }
             });
@@ -701,7 +705,7 @@ function App() {
     };
 
     const filteredMatches = matches.filter(match => {
-        if (!match || !match.date || !match.team1Players || !match.team2Players) return false;
+        if (!match || !match.date || !match.team1Players || !match.team2Players || match.isDeleted) return false;
 
         let matchesPlayer = !statsPlayerFilter || 
             (match.team1Players.includes(statsPlayerFilter) || 
