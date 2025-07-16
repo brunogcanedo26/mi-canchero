@@ -1,4 +1,4 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, Component } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { 
@@ -50,7 +50,29 @@ const playerPins = {
 };
 
 // Helper function to check if a player name is in the predefined list
-const isPredefinedPlayer = (playerName) => playerList.includes(playerName);
+const isPredefinedPlayer = (playerName) => playerName && playerList.includes(playerName);
+
+// ErrorBoundary component to catch rendering errors
+class ErrorBoundary extends Component {
+    state = { hasError: false, error: null };
+
+    static getDerivedStateFromError(error) {
+        return { hasError: true, error };
+    }
+
+    render() {
+        if (this.state.hasError) {
+            return (
+                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative m-4">
+                    <strong className="font-bold">Error:</strong>
+                    <span className="block sm:inline"> Ocurrio un error al renderizar la pagina. Por favor, recarga la pagina o contacta al administrador.</span>
+                    <p className="text-sm mt-2">Detalles: {this.state.error?.message}</p>
+                </div>
+            );
+        }
+        return this.props.children;
+    }
+}
 
 function App() {
     const [matches, setMatches] = useState([]);
@@ -61,7 +83,7 @@ function App() {
         team2Player2: { value: '', type: 'dropdown' },
         scoreTeam1: '',
         scoreTeam2: '',
-        comment: '', // New field for comments
+        comment: '',
         date: new Date().toISOString().split('T')[0], 
     });
     const [userId, setUserId] = useState(null);
@@ -73,7 +95,12 @@ function App() {
     const [errorMessage, setErrorMessage] = useState('');
     const [groupedMatches, setGroupedMatches] = useState({}); 
     const [expandedDates, setExpandedDates] = useState(new Set()); 
-    const [showStats, setShowStats] = useState(false); // State for stats page
+    const [showStats, setShowStats] = useState(false);
+    const [statsPlayerFilter, setStatsPlayerFilter] = useState('');
+    const [statsDateFrom, setStatsDateFrom] = useState('');
+    const [statsDateTo, setStatsDateTo] = useState('');
+    const [statsWeekFilter, setStatsWeekFilter] = useState('');
+    const [statsResultFilter, setStatsResultFilter] = useState('');
 
     // New state for the welcome screen
     const [showWelcomeScreen, setShowWelcomeScreen] = useState(true);
@@ -82,13 +109,6 @@ function App() {
     const [welcomePin, setWelcomePin] = useState('');
     const [welcomeScreenError, setWelcomeScreenError] = useState('');
     const [loadedByPlayer, setLoadedByPlayer] = useState('');
-
-    // Stats page filters
-    const [statsPlayerFilter, setStatsPlayerFilter] = useState('');
-    const [statsDateFrom, setStatsDateFrom] = useState('');
-    const [statsDateTo, setStatsDateTo] = useState('');
-    const [statsWeekFilter, setStatsWeekFilter] = useState('');
-    const [statsResultFilter, setStatsResultFilter] = useState(''); // '', 'won', 'lost', 'played'
 
     useEffect(() => {
         const setupFirebase = async () => {
@@ -122,7 +142,15 @@ function App() {
         const unsubscribeMatches = onSnapshot(matchesCollectionRef, (matchesSnapshot) => {
             const fetchedMatches = matchesSnapshot.docs.map(doc => ({
                 id: doc.id,
-                ...doc.data()
+                ...doc.data(),
+                team1Players: doc.data().team1Players || [],
+                team2Players: doc.data().team2Players || [],
+                date: doc.data().date || new Date().toISOString().split('T')[0],
+                winner: doc.data().winner || 'N/A',
+                comment: doc.data().comment || '',
+                loadedBy: doc.data().loadedBy || 'Desconocido',
+                timestamp: doc.data().timestamp || Timestamp.now(),
+                editHistory: doc.data().editHistory || []
             }));
             fetchedMatches.sort((a, b) => new Date(b.date) - new Date(a.date)); 
             setMatches(fetchedMatches);
@@ -136,7 +164,7 @@ function App() {
 
                 const grouped = {};
                 fetchedMatches.forEach(match => {
-                    const date = match.date; 
+                    const date = match.date || new Date().toISOString().split('T')[0];
                     if (!grouped[date]) {
                         grouped[date] = {
                             matches: [],
@@ -145,8 +173,9 @@ function App() {
                     }
                     grouped[date].matches.push(match);
 
-                    const allPlayersInMatch = [...match.team1Players, ...match.team2Players];
+                    const allPlayersInMatch = [...(match.team1Players || []), ...(match.team2Players || [])];
                     allPlayersInMatch.forEach(player => {
+                        if (!player) return; // Skip invalid players
                         if (!grouped[date].summary[player]) {
                             grouped[date].summary[player] = { played: 0, won: 0, lost: 0, paid: false };
                         }
@@ -158,18 +187,18 @@ function App() {
 
                     if (match.winner && match.winner !== 'Empate' && match.winner !== 'N/A') {
                         if (match.winner.startsWith('Equipo 1')) {
-                            match.team1Players.forEach(player => {
-                                grouped[date].summary[player].won++;
+                            (match.team1Players || []).forEach(player => {
+                                if (player) grouped[date].summary[player].won++;
                             });
-                            match.team2Players.forEach(player => {
-                                grouped[date].summary[player].lost++;
+                            (match.team2Players || []).forEach(player => {
+                                if (player) grouped[date].summary[player].lost++;
                             });
                         } else if (match.winner.startsWith('Equipo 2')) {
-                            match.team2Players.forEach(player => {
-                                grouped[date].summary[player].won++;
+                            (match.team2Players || []).forEach(player => {
+                                if (player) grouped[date].summary[player].won++;
                             });
-                            match.team1Players.forEach(player => {
-                                grouped[date].summary[player].lost++;
+                            (match.team1Players || []).forEach(player => {
+                                if (player) grouped[date].summary[player].lost++;
                             });
                         }
                     }
@@ -254,12 +283,11 @@ function App() {
             return;
         }
 
-        const team1Players = [newMatch.team1Player1.value, newMatch.team1Player2.value];
-        const team2Players = [newMatch.team2Player1.value, newMatch.team2Player2.value];
+        const team1Players = [newMatch.team1Player1.value, newMatch.team1Player2.value].filter(p => p);
+        const team2Players = [newMatch.team2Player1.value, newMatch.team2Player2.value].filter(p => p);
         const { date, comment } = newMatch; 
 
-        if (team1Players[0] === '' || team1Players[1] === '' ||
-            team2Players[0] === '' || team2Players[1] === '' || !date) {
+        if (team1Players.length !== 2 || team2Players.length !== 2 || !date) {
             setErrorMessage("Por favor, completa todos los campos de jugadores y la fecha.");
             return;
         }
@@ -316,7 +344,7 @@ function App() {
                 scoreTeam1: score1, 
                 scoreTeam2: score2, 
                 date,
-                comment, // Save comment
+                comment,
                 winner,
                 loadedBy: loadedByPlayer,
                 timestamp: Timestamp.now(),
@@ -347,14 +375,12 @@ function App() {
     const deleteMatch = async () => {
         if (!userId || !matchToDelete) return;
         try {
-            // Save deleted match info
             await addDoc(collection(db, `artifacts/${appId}/deletedMatches`), {
                 originalMatch: matchToDelete,
                 deletedBy: loadedByPlayer,
                 deletedTimestamp: Timestamp.now()
             });
 
-            // Delete the match
             await deleteDoc(doc(db, `artifacts/${appId}/matches`, matchToDelete.id)); 
             setShowConfirmModal(false);
             setMatchToDelete(null);
@@ -373,10 +399,10 @@ function App() {
         
         const transformedEditedMatch = {
             ...match,
-            team1Player1: { value: match.team1Players[0], type: isPredefinedPlayer(match.team1Players[0]) ? 'dropdown' : 'custom' },
-            team1Player2: { value: match.team1Players[1], type: isPredefinedPlayer(match.team1Players[1]) ? 'dropdown' : 'custom' },
-            team2Player1: { value: match.team2Players[0], type: isPredefinedPlayer(match.team2Players[0]) ? 'dropdown' : 'custom' },
-            team2Player2: { value: match.team2Players[1], type: isPredefinedPlayer(match.team2Players[1]) ? 'dropdown' : 'custom' },
+            team1Player1: { value: match.team1Players[0] || '', type: isPredefinedPlayer(match.team1Players[0]) ? 'dropdown' : 'custom' },
+            team1Player2: { value: match.team1Players[1] || '', type: isPredefinedPlayer(match.team1Players[1]) ? 'dropdown' : 'custom' },
+            team2Player1: { value: match.team2Players[0] || '', type: isPredefinedPlayer(match.team2Players[0]) ? 'dropdown' : 'custom' },
+            team2Player2: { value: match.team2Players[1] || '', type: isPredefinedPlayer(match.team2Players[1]) ? 'dropdown' : 'custom' },
             comment: match.comment || '',
         };
         setEditingMatchId(match.id);
@@ -392,12 +418,11 @@ function App() {
     const saveEditedMatch = async () => {
         if (!userId || !editedMatch) return;
 
-        const team1Players = [editedMatch.team1Player1.value, editedMatch.team1Player2.value];
-        const team2Players = [editedMatch.team2Player1.value, editedMatch.team2Player2.value];
+        const team1Players = [editedMatch.team1Player1.value, editedMatch.team1Player2.value].filter(p => p);
+        const team2Players = [editedMatch.team2Player1.value, editedMatch.team2Player2.value].filter(p => p);
         const { date, comment } = editedMatch; 
 
-        if (team1Players[0] === '' || team1Players[1] === '' ||
-            team2Players[0] === '' || team2Players[1] === '' || !date) {
+        if (team1Players.length !== 2 || team2Players.length !== 2 || !date) {
             setErrorMessage("Por favor, completa todos los campos de jugadores y la fecha para editar.");
             return;
         }
@@ -447,26 +472,27 @@ function App() {
             winner = 'N/A';
         }
 
-        // Compare with original match to log changes
         const originalMatch = matches.find(m => m.id === editedMatch.id);
         const changes = [];
-        if (originalMatch.team1Players.join() !== team1Players.join()) {
-            changes.push(`Equipo 1 cambiado de ${originalMatch.team1Players.join(' y ')} a ${team1Players.join(' y ')}`);
-        }
-        if (originalMatch.team2Players.join() !== team2Players.join()) {
-            changes.push(`Equipo 2 cambiado de ${originalMatch.team2Players.join(' y ')} a ${team2Players.join(' y ')}`);
-        }
-        if (originalMatch.scoreTeam1 !== score1) {
-            changes.push(`Puntuacion Equipo 1 cambiada de ${originalMatch.scoreTeam1 || 'N/A'} a ${score1 || 'N/A'}`);
-        }
-        if (originalMatch.scoreTeam2 !== score2) {
-            changes.push(`Puntuacion Equipo 2 cambiada de ${originalMatch.scoreTeam2 || 'N/A'} a ${score2 || 'N/A'}`);
-        }
-        if (originalMatch.date !== date) {
-            changes.push(`Fecha cambiada de ${originalMatch.date} a ${date}`);
-        }
-        if (originalMatch.comment !== comment) {
-            changes.push(`Comentario cambiado de "${originalMatch.comment || 'N/A'}" a "${comment || 'N/A'}"`);
+        if (originalMatch) {
+            if (originalMatch.team1Players.join() !== team1Players.join()) {
+                changes.push(`Equipo 1 cambiado de ${originalMatch.team1Players.join(' y ')} a ${team1Players.join(' y ')}`);
+            }
+            if (originalMatch.team2Players.join() !== team2Players.join()) {
+                changes.push(`Equipo 2 cambiado de ${originalMatch.team2Players.join(' y ')} a ${team2Players.join(' y ')}`);
+            }
+            if (originalMatch.scoreTeam1 !== score1) {
+                changes.push(`Puntuacion Equipo 1 cambiada de ${originalMatch.scoreTeam1 || 'N/A'} a ${score1 || 'N/A'}`);
+            }
+            if (originalMatch.scoreTeam2 !== score2) {
+                changes.push(`Puntuacion Equipo 2 cambiada de ${originalMatch.scoreTeam2 || 'N/A'} a ${score2 || 'N/A'}`);
+            }
+            if (originalMatch.date !== date) {
+                changes.push(`Fecha cambiada de ${originalMatch.date} a ${date}`);
+            }
+            if (originalMatch.comment !== comment) {
+                changes.push(`Comentario cambiado de "${originalMatch.comment || 'N/A'}" a "${comment || 'N/A'}"`);
+            }
         }
 
         try {
@@ -482,7 +508,7 @@ function App() {
                 scoreTeam1: score1, 
                 scoreTeam2: score2, 
                 date,
-                comment, // Save comment
+                comment,
                 winner,
                 editHistory: [...(editedMatch.editHistory || []), newEditEntry] 
             });
@@ -496,6 +522,7 @@ function App() {
     };
 
     const toggleDateExpansion = (date) => {
+        if (!date) return;
         setExpandedDates(prev => {
             const newSet = new Set(prev);
             if (newSet.has(date)) {
@@ -555,13 +582,13 @@ function App() {
             return [
                 index + 1,
                 match.date,
-                match.team1Players[0],
+                match.team1Players[0] || 'N/A',
                 team1Player1Paid,
-                match.team1Players[1],
+                match.team1Players[1] || 'N/A',
                 team1Player2Paid,
-                match.team2Players[0],
+                match.team2Players[0] || 'N/A',
                 team2Player1Paid,
-                match.team2Players[1],
+                match.team2Players[1] || 'N/A',
                 team2Player2Paid,
                 score1,
                 score2,
@@ -651,17 +678,25 @@ function App() {
     };
 
     const getWeekNumber = (date) => {
-        const d = new Date(date);
-        d.setHours(0, 0, 0, 0);
-        d.setDate(d.getDate() + 4 - (d.getDay() || 7));
-        const yearStart = new Date(d.getFullYear(), 0, 1);
-        return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        try {
+            const d = new Date(date);
+            if (isNaN(d.getTime())) return 0;
+            d.setHours(0, 0, 0, 0);
+            d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+            const yearStart = new Date(d.getFullYear(), 0, 1);
+            return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+        } catch (e) {
+            console.error("Error calculating week number:", e);
+            return 0;
+        }
     };
 
     const filteredMatches = matches.filter(match => {
+        if (!match || !match.date || !match.team1Players || !match.team2Players) return false;
+
         let matchesPlayer = !statsPlayerFilter || 
-            match.team1Players.includes(statsPlayerFilter) || 
-            match.team2Players.includes(statsPlayerFilter);
+            (match.team1Players.includes(statsPlayerFilter) || 
+             match.team2Players.includes(statsPlayerFilter));
 
         let matchesDate = true;
         if (statsDateFrom && statsDateTo) {
@@ -690,7 +725,7 @@ function App() {
                     ((match.winner.startsWith('Equipo 1') && match.team2Players.includes(statsPlayerFilter)) || 
                      (match.winner.startsWith('Equipo 2') && match.team1Players.includes(statsPlayerFilter)));
             } else if (statsResultFilter === 'played') {
-                matchesResult = true; // Already filtered by player
+                matchesResult = true;
             }
         }
 
@@ -699,8 +734,10 @@ function App() {
 
     const statsSummary = {};
     filteredMatches.forEach(match => {
+        if (!match || !match.team1Players || !match.team2Players) return;
         const allPlayers = [...match.team1Players, ...match.team2Players];
         allPlayers.forEach(player => {
+            if (!player) return;
             if (!statsSummary[player]) {
                 statsSummary[player] = { played: 0, won: 0, lost: 0 };
             }
@@ -733,229 +770,238 @@ function App() {
 
     if (showStats) {
         return (
-            <div className="min-h-screen bg-gradient-to-br from-blue-400 to-purple-600 p-4 font-inter text-gray-800 flex flex-col items-center">
-                <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-4xl mb-8">
-                    <h1 className="text-4xl font-bold text-center text-purple-700 mb-6">Estadisticas de Partidos</h1>
-                    <div className="flex justify-between mb-4">
-                        <button
-                            onClick={handleExitApp}
-                            className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                        >
-                            <LogOut className="mr-2" size={20} /> Volver
-                        </button>
-                    </div>
+            <ErrorBoundary>
+                <div className="min-h-screen bg-gradient-to-br from-blue-400 to-purple-600 p-4 font-inter text-gray-800 flex flex-col items-center">
+                    <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-4xl mb-8">
+                        <h1 className="text-4xl font-bold text-center text-purple-700 mb-6">Estadisticas de Partidos</h1>
+                        <div className="flex justify-between mb-4">
+                            <button
+                                onClick={handleExitApp}
+                                className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
+                            >
+                                <LogOut className="mr-2" size={20} /> Volver
+                            </button>
+                        </div>
 
-                    <div className="mb-8 p-4 border border-blue-200 rounded-lg bg-blue-50">
-                        <h2 className="text-2xl font-semibold text-blue-700 mb-4">Filtros</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label className ŧ
-                                    ="block text-gray-700 text-sm font-bold mb-2">Jugador:</label>
-                                <select
-                                    value={statsPlayerFilter}
-                                    onChange={(e) => setStatsPlayerFilter(e.target.value)}
-                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                >
-                                    <option value="">Todos los jugadores</option>
-                                    {playerList.map((player, index) => (
-                                        <option key={index} value={player}>
-                                            {player}
-                                        </option>
-                                    ))}
-                                </select>
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 text-sm font-bold mb-2">Resultado:</label>
-                                <select
-                                    value={statsResultFilter}
-                                    onChange={(e) => setStatsResultFilter(e.target.value)}
-                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                >
-                                    <option value="">Todos</option>
-                                    <option value="played">Jugados</option>
-                                    <option value="won">Ganados</option>
-                                    <option value="lost">Perdidos</option>
-                                </select>
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label className="block text-gray-700 text-sm font-bold mb-2">Fecha Desde:</label>
-                                <input
-                                    type="date"
-                                    value={statsDateFrom}
-                                    onChange={(e) => setStatsDateFrom(e.target.value)}
-                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 text-sm font-bold mb-2">Fecha Hasta:</label>
-                                <input
-                                    type="date"
-                                    value={statsDateTo}
-                                    onChange={(e) => setStatsDateTo(e.target.value)}
-                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                />
-                            </div>
-                        </div>
-                        <div>
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Semana (YYYY-WW):</label>
-                            <input
-                                type="week"
-                                value={statsWeekFilter}
-                                onChange={(e) => setStatsWeekFilter(e.target.value)}
-                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                            />
-                        </div>
-                    </div>
-
-                    <h2 className="text-2xl font-semibold text-purple-700 mb-4">Resumen de Estadisticas</h2>
-                    {Object.keys(statsSummary).length === 0 ? (
-                        <p className="text-gray-500">No hay datos de resumen para los filtros seleccionados.</p>
-                    ) : (
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
-                            {Object.entries(statsSummary).map(([player, stats]) => (
-                                <div key={player} className="bg-blue-100 p-3 rounded-lg shadow-sm border border-blue-200">
-                                    <p className="font-bold text-blue-800">{player}</p>
-                                    <p className="text-gray-700">Jugados: {stats.played}</p>
-                                    <p className="text-green-700">Ganados: {stats.won}</p>
-                                    <p className="text-red-700">Perdidos: {stats.lost}</p>
-                                </div>
-                            ))}
-                        </div>
-                    )}
-
-                    <h2 className="text-2xl font-semibold text-purple-700 mb-4">Lista de Partidos</h2>
-                    {filteredMatches.length === 0 ? (
-                        <p className="text-gray-500">No hay partidos para los filtros seleccionados.</p>
-                    ) : (
-                        <div className="grid grid-cols-1 gap-3">
-                            {filteredMatches.map((match, index) => (
-                                <div key={match.id} className="bg-gray-50 p-3 rounded-lg shadow-sm border border-gray-100">
-                                    <p className="text-md font-semibold text-blue-800 mb-1">
-                                        #{index + 1} - {match.date}: {match.team1Players.join(' y ')} vs {match.team2Players.join(' y ')}
-                                    </p>
-                                    <p className="text-lg font-bold text-purple-600 mb-1">
-                                        Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuacion no registrada'}
-                                    </p>
-                                    <p className="text-sm text-green-700 font-semibold mb-2">
-                                        Ganador: {match.winner !== 'N/A' ? match.winner : 'No determinado'}
-                                    </p>
-                                    {match.comment && (
-                                        <p className="text-sm text-gray-600 mb-2">Comentario: {match.comment}</p>
-                                    )}
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Cargado por: <span className="font-semibold">{match.loadedBy || 'Desconocido'}</span> el <span className="font-semibold">{match.timestamp ? new Date(match.timestamp.toDate()).toLocaleString() : 'N/A'}</span>
-                                    </p>
-                                    {match.editHistory && match.editHistory.length > 0 && (
-                                        <div className="text-xs text-gray-500 mt-1">
-                                            Historial de Ediciones:
-                                            <ul className="list-disc list-inside ml-2">
-                                                {match.editHistory.map((edit, idx) => (
-                                                    <li key={idx}>
-                                                        <span className="font-semibold">{edit.editedBy}</span> el <span className="font-semibold">{edit.editedTimestamp ? new Date(edit.editedTimestamp.toDate()).toLocaleString() : 'N/A'}</span>: {edit.changes.join(', ')}
-                                                    </li>
+                        {matches.length === 0 ? (
+                            <p className="text-center text-gray-500">Cargando datos de partidos...</p>
+                        ) : (
+                            <>
+                                <div className="mb-8 p-4 border border-blue-200 rounded-lg bg-blue-50">
+                                    <h2 className="text-2xl font-semibold text-blue-700 mb-4">Filtros</h2>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                        <div>
+                                            <label className="block text-gray-700 text-sm font-bold mb-2">Jugador:</label>
+                                            <select
+                                                value={statsPlayerFilter}
+                                                onChange={(e) => setStatsPlayerFilter(e.target.value)}
+                                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                            >
+                                                <option value="">Todos los jugadores</option>
+                                                {playerList.map((player, index) => (
+                                                    <option key={index} value={player}>
+                                                        {player}
+                                                    </option>
                                                 ))}
-                                            </ul>
+                                            </select>
                                         </div>
-                                    )}
+                                        <div>
+                                            <label className="block text-gray-700 text-sm font-bold mb-2">Resultado:</label>
+                                            <select
+                                                value={statsResultFilter}
+                                                onChange={(e) => setStatsResultFilter(e.target.value)}
+                                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                            >
+                                                <option value="">Todos</option>
+                                                <option value="played">Jugados</option>
+                                                <option value="won">Ganados</option>
+                                                <option value="lost">Perdidos</option>
+                                            </select>
+                                        </div>
+                                    </div>
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                        <div>
+                                            <label className="block text-gray-700 text-sm font-bold mb-2">Fecha Desde:</label>
+                                            <input
+                                                type="date"
+                                                value={statsDateFrom}
+                                                onChange={(e) => setStatsDateFrom(e.target.value)}
+                                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                            />
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-700 text-sm font-bold mb-2">Fecha Hasta:</label>
+                                            <input
+                                                type="date"
+                                                value={statsDateTo}
+                                                onChange={(e) => setStatsDateTo(e.target.value)}
+                                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                            />
+                                        </div>
+                                    </div>
+                                    <div>
+                                        <label className="block text-gray-700 text-sm font-bold mb-2">Semana (YYYY-WW):</label>
+                                        <input
+                                            type="week"
+                                            value={statsWeekFilter}
+                                            onChange={(e) => setStatsWeekFilter(e.target.value)}
+                                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                        />
+                                    </div>
                                 </div>
-                            ))}
-                        </div>
-                    )}
+
+                                <h2 className="text-2xl font-semibold text-purple-700 mb-4">Resumen de Estadisticas</h2>
+                                {Object.keys(statsSummary).length === 0 ? (
+                                    <p className="text-gray-500">No hay datos de resumen para los filtros seleccionados.</p>
+                                ) : (
+                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+                                        {Object.entries(statsSummary).map(([player, stats]) => (
+                                            <div key={player} className="bg-blue-100 p-3 rounded-lg shadow-sm border border-blue-200">
+                                                <p className="font-bold text-blue-800">{player}</p>
+                                                <p className="text-gray-700">Jugados: {stats.played}</p>
+                                                <p className="text-green-700">Ganados: {stats.won}</p>
+                                                <p className="text-red-700">Perdidos: {stats.lost}</p>
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+
+                                <h2 className="text-2xl font-semibold text-purple-700 mb-4">Lista de Partidos</h2>
+                                {filteredMatches.length === 0 ? (
+                                    <p className="text-gray-500">No hay partidos para los filtros seleccionados.</p>
+                                ) : (
+                                    <div className="grid grid-cols-1 gap-3">
+                                        {filteredMatches.map((match, index) => (
+                                            <div key={match.id} className="bg-gray-50 p-3 rounded-lg shadow-sm border border-gray-100">
+                                                <p className="text-md font-semibold text-blue-800 mb-1">
+                                                    #{index + 1} - {match.date}: {(match.team1Players || []).join(' y ') || 'N/A'} vs {(match.team2Players || []).join(' y ') || 'N/A'}
+                                                </p>
+                                                <p className="text-lg font-bold text-purple-600 mb-1">
+                                                    Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuacion no registrada'}
+                                                </p>
+                                                <p className="text-sm text-green-700 font-semibold mb-2">
+                                                    Ganador: {match.winner !== 'N/A' ? match.winner : 'No determinado'}
+                                                </p>
+                                                {match.comment && (
+                                                    <p className="text-sm text-gray-600 mb-2">Comentario: {match.comment}</p>
+                                                )}
+                                                <p className="text-xs text-gray-500 mt-1">
+                                                    Cargado por: <span className="font-semibold">{match.loadedBy || 'Desconocido'}</span> el <span className="font-semibold">{match.timestamp ? new Date(match.timestamp.toDate()).toLocaleString() : 'N/A'}</span>
+                                                </p>
+                                                {match.editHistory && match.editHistory.length > 0 && (
+                                                    <div className="text-xs text-gray-500 mt-1">
+                                                        Historial de Ediciones:
+                                                        <ul className="list-disc list-inside ml-2">
+                                                            {match.editHistory.map((edit, idx) => (
+                                                                <li key={idx}>
+                                                                    <span className="font-semibold">{edit.editedBy}</span> el <span className="font-semibold">{edit.editedTimestamp ? new Date(edit.editedTimestamp.toDate()).toLocaleString() : 'N/A'}</span>: {edit.changes.join(', ')}
+                                                                </li>
+                                                            ))}
+                                                        </ul>
+                                                    </div>
+                                                )}
+                                            </div>
+                                        ))}
+                                    </div>
+                                )}
+                            </>
+                        )}
+                    </div>
                 </div>
-            </div>
+            </ErrorBoundary>
         );
     }
 
     if (showWelcomeScreen) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-400 to-purple-600 p-4 font-inter text-gray-800">
-                <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md text-center">
-                    <h1 className="text-4xl font-bold text-purple-700 mb-4">Defensores de Santos Lugares - Pelota Paleta</h1>
-                    <h2 className="text-2xl font-semibold text-blue-700 mb-8">Registro Diario</h2>
-                    
-                    {welcomeScreenError && (
-                        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                            <strong className="font-bold">Error:</strong>
-                            <span className="block sm:inline"> {welcomeScreenError}</span>
-                        </div>
-                    )}
+            <ErrorBoundary>
+                <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-400 to-purple-600 p-4 font-inter text-gray-800">
+                    <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md text-center">
+                        <h1 className="text-4xl font-bold text-purple-700 mb-4">Defensores de Santos Lugares - Pelota Paleta</h1>
+                        <h2 className="text-2xl font-semibold text-blue-700 mb-8">Registro Diario</h2>
+                        
+                        {welcomeScreenError && (
+                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                                <strong className="font-bold">Error:</strong>
+                                <span className="block sm:inline"> {welcomeScreenError}</span>
+                            </div>
+                        )}
 
-                    <div className="mb-6">
-                        <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="welcome-player-select">
-                            Quien Ingresa?
-                        </label>
-                        <select
-                            id="welcome-player-select"
-                            value={selectedWelcomePlayer}
-                            onChange={(e) => {
-                                setSelectedWelcomePlayer(e.target.value);
-                                setWelcomePin('');
-                                setCustomWelcomePlayerName('');
-                            }}
-                            className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg"
-                        >
-                            <option value="">Seleccionar Jugador</option>
-                            {welcomePlayerList.map((player, index) => (
-                                <option key={index} value={player}>
-                                    {player}
-                                </option>
-                            ))}
-                        </select>
-                    </div>
-                    {selectedWelcomePlayer === 'Otro' && (
                         <div className="mb-6">
-                            <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="custom-player-name-input">
-                                Nombre del Jugador:
+                            <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="welcome-player-select">
+                                Quien Ingresa?
                             </label>
-                            <input
-                                type="text"
-                                id="custom-player-name-input"
-                                value={customWelcomePlayerName}
-                                onChange={(e) => setCustomWelcomePlayerName(e.target.value)}
-                                className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg text-center"
-                                placeholder="Escribe el nombre"
-                            />
+                            <select
+                                id="welcome-player-select"
+                                value={selectedWelcomePlayer}
+                                onChange={(e) => {
+                                    setSelectedWelcomePlayer(e.target.value);
+                                    setWelcomePin('');
+                                    setCustomWelcomePlayerName('');
+                                }}
+                                className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg"
+                            >
+                                <option value="">Seleccionar Jugador</option>
+                                {welcomePlayerList.map((player, index) => (
+                                    <option key={index} value={player}>
+                                        {player}
+                                    </option>
+                                ))}
+                            </select>
                         </div>
-                    )}
-                    {selectedWelcomePlayer && (
-                        <div className="mb-6">
-                            <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="welcome-pin-input">
-                                Ingresa tu PIN (4 digitos):
-                            </label>
-                            <input
-                                type="password"
-                                id="welcome-pin-input"
-                                value={welcomePin}
-                                onChange={(e) => setWelcomePin(e.target.value)}
-                                maxLength="4"
-                                className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg text-center tracking-widest"
-                                placeholder="****"
-                            />
-                            {selectedWelcomePlayer === 'Otro' && (
-                                <p className="text-xs text-gray-500 mt-1">
-                                    Si selecciona "Otro" ingresa el codigo 1111
-                                </p>
-                            )}
+                        {selectedWelcomePlayer === 'Otro' && (
+                            <div className="mb-6">
+                                <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="custom-player-name-input">
+                                    Nombre del Jugador:
+                                </label>
+                                <input
+                                    type="text"
+                                    id="custom-player-name-input"
+                                    value={customWelcomePlayerName}
+                                    onChange={(e) => setCustomWelcomePlayerName(e.target.value)}
+                                    className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg text-center"
+                                    placeholder="Escribe el nombre"
+                                />
+                            </div>
+                        )}
+                        {selectedWelcomePlayer && (
+                            <div className="mb-6">
+                                <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="welcome-pin-input">
+                                    Ingresa tu PIN (4 digitos):
+                                </label>
+                                <input
+                                    type="password"
+                                    id="welcome-pin-input"
+                                    value={welcomePin}
+                                    onChange={(e) => setWelcomePin(e.target.value)}
+                                    maxLength="4"
+                                    className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg text-center tracking-widest"
+                                    placeholder="****"
+                                />
+                                {selectedWelcomePlayer === 'Otro' && (
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Si selecciona "Otro" ingresa el codigo 1111
+                                    </p>
+                                )}
+                            </div>
+                        )}
+                        <div className="flex flex-col space-y-4">
+                            <button
+                                onClick={handleWelcomeEnter}
+                                className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
+                            >
+                                <LogIn className="mr-3" size={24} /> Ingresar
+                            </button>
+                            <button
+                                onClick={handleShowStats}
+                                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
+                            >
+                                <BarChart2 className="mr-3" size={24} /> Ver Estadisticas
+                            </button>
                         </div>
-                    )}
-                    <div className="flex flex-col space-y-4">
-                        <button
-                            onClick={handleWelcomeEnter}
-                            className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
-                        >
-                            <LogIn className="mr-3" size={24} /> Ingresar
-                        </button>
-                        <button
-                            onClick={handleShowStats}
-                            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
-                        >
-                            <BarChart2 className="mr-3" size={24} /> Ver Estadisticas
-                        </button>
                     </div>
                 </div>
-            </div>
+            </ErrorBoundary>
         );
     }
 
@@ -987,308 +1033,310 @@ function App() {
     );
 
     return (
-        <div className="min-h-screen bg-gradient-to-br from-blue-400 to-purple-600 p-4 font-inter text-gray-800 flex flex-col items-center">
-            <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-4xl mb-8">
-                <h1 className="text-4xl font-bold text-center text-purple-700 mb-6">Control de Partidos de Pelota Paleta</h1>
-                {userId && (
-                    <p className="text-sm text-center text-gray-500 mb-4">
-                        ID de Usuario (Anonimo): <span className="font-mono bg-gray-100 p-1 rounded">{userId}</span>
-                    </p>
-                )}
-                {loadedByPlayer && (
-                    <p className="text-sm text-center text-gray-500 mb-4">
-                        Ingresado como: <span className="font-mono bg-gray-100 p-1 rounded">{loadedByPlayer}</span>
-                    </p>
-                )}
+        <ErrorBoundary>
+            <div className="min-h-screen bg-gradient-to-br from-blue-400 to-purple-600 p-4 font-inter text-gray-800 flex flex-col items-center">
+                <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-4xl mb-8">
+                    <h1 className="text-4xl font-bold text-center text-purple-700 mb-6">Control de Partidos de Pelota Paleta</h1>
+                    {userId && (
+                        <p className="text-sm text-center text-gray-500 mb-4">
+                            ID de Usuario (Anonimo): <span className="font-mono bg-gray-100 p-1 rounded">{userId}</span>
+                        </p>
+                    )}
+                    {loadedByPlayer && (
+                        <p className="text-sm text-center text-gray-500 mb-4">
+                            Ingresado como: <span className="font-mono bg-gray-100 p-1 rounded">{loadedByPlayer}</span>
+                        </p>
+                    )}
 
-                {errorMessage && (
-                    <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                        <strong className="font-bold">Error:</strong>
-                        <span className="block sm:inline"> {errorMessage}</span>
-                    </div>
-                )}
-
-                <div className="flex justify-end mb-4">
-                    <button
-                        onClick={handleExitApp}
-                        className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                    >
-                        <LogOut className="mr-2" size={20} /> Salir
-                    </button>
-                </div>
-
-                <div className="mb-8 p-4 border border-blue-200 rounded-lg bg-blue-50">
-                    <h2 className="text-2xl font-semibold text-blue-700 mb-4">Registrar Nuevo Partido</h2>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                        <div>
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 1:</label>
-                            {renderPlayerInput(newMatch.team1Player1, setNewMatch, 'team1Player1')}
-                            {renderPlayerInput(newMatch.team1Player2, setNewMatch, 'team1Player2')}
+                    {errorMessage && (
+                        <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                            <strong className="font-bold">Error:</strong>
+                            <span className="block sm:inline"> {errorMessage}</span>
                         </div>
-                        <div>
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 2:</label>
-                            {renderPlayerInput(newMatch.team2Player1, setNewMatch, 'team2Player1')}
-                            {renderPlayerInput(newMatch.team2Player2, setNewMatch, 'team2Player2')}
-                        </div>
+                    )}
+
+                    <div className="flex justify-end mb-4">
+                        <button
+                            onClick={handleExitApp}
+                            className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
+                        >
+                            <LogOut className="mr-2" size={20} /> Salir
+                        </button>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                        <div>
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Equipo 1 (Opcional):</label>
-                            <input
-                                type="number"
-                                name="scoreTeam1"
-                                value={newMatch.scoreTeam1}
+
+                    <div className="mb-8 p-4 border border-blue-200 rounded-lg bg-blue-50">
+                        <h2 className="text-2xl font-semibold text-blue-700 mb-4">Registrar Nuevo Partido</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 1:</label>
+                                {renderPlayerInput(newMatch.team1Player1, setNewMatch, 'team1Player1')}
+                                {renderPlayerInput(newMatch.team1Player2, setNewMatch, 'team1Player2')}
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 2:</label>
+                                {renderPlayerInput(newMatch.team2Player1, setNewMatch, 'team2Player1')}
+                                {renderPlayerInput(newMatch.team2Player2, setNewMatch, 'team2Player2')}
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Equipo 1 (Opcional):</label>
+                                <input
+                                    type="number"
+                                    name="scoreTeam1"
+                                    value={newMatch.scoreTeam1}
+                                    onChange={handleNewMatchOtherInputChange}
+                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Equipo 2 (Opcional):</label>
+                                <input
+                                    type="number"
+                                    name="scoreTeam2"
+                                    value={newMatch.scoreTeam2}
+                                    onChange={handleNewMatchOtherInputChange}
+                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Fecha:</label>
+                                <input
+                                    type="date"
+                                    name="date"
+                                    value={newMatch.date}
+                                    onChange={handleNewMatchOtherInputChange}
+                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                />
+                            </div>
+                        </div>
+                        <div className="mb-4">
+                            <label className="block text-gray-700 text-sm font-bold mb-2">Comentario (Opcional):</label>
+                            <textarea
+                                name="comment"
+                                value={newMatch.comment}
                                 onChange={handleNewMatchOtherInputChange}
                                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                placeholder="Escribe un comentario sobre el partido"
                             />
                         </div>
-                        <div>
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Equipo 2 (Opcional):</label>
-                            <input
-                                type="number"
-                                name="scoreTeam2"
-                                value={newMatch.scoreTeam2}
-                                onChange={handleNewMatchOtherInputChange}
-                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                            />
-                        </div>
-                        <div>
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Fecha:</label>
-                            <input
-                                type="date"
-                                name="date"
-                                value={newMatch.date}
-                                onChange={handleNewMatchOtherInputChange}
-                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                            />
-                        </div>
+                        <button
+                            onClick={addMatch}
+                            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105"
+                        >
+                            <PlusCircle className="mr-2" size={20} /> Agregar Partido
+                        </button>
                     </div>
-                    <div className="mb-4">
-                        <label className="block text-gray-700 text-sm font-bold mb-2">Comentario (Opcional):</label>
-                        <textarea
-                            name="comment"
-                            value={newMatch.comment}
-                            onChange={handleNewMatchOtherInputChange}
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                            placeholder="Escribe un comentario sobre el partido"
-                        />
+
+                    <div className="flex justify-between items-center mb-4">
+                        <h2 className="text-2xl font-semibold text-purple-700">Resumen de Partidos por Fecha</h2>
+                        <button
+                            onClick={downloadMatchHistory}
+                            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
+                        >
+                            <Download className="mr-2" size={20} /> Descargar Historial
+                        </button>
                     </div>
-                    <button
-                        onClick={addMatch}
-                        className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105"
-                    >
-                        <PlusCircle className="mr-2" size={20} /> Agregar Partido
-                    </button>
-                </div>
 
-                <div className="flex justify-between items-center mb-4">
-                    <h2 className="text-2xl font-semibold text-purple-700">Resumen de Partidos por Fecha</h2>
-                    <button
-                        onClick={downloadMatchHistory}
-                        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                    >
-                        <Download className="mr-2" size={20} /> Descargar Historial
-                    </button>
-                </div>
-
-                {Object.keys(groupedMatches).length === 0 ? (
-                    <p className="text-center text-gray-500">No hay resumenes de partidos disponibles.</p>
-                ) : (
-                    Object.entries(groupedMatches).sort(([dateA], [dateB]) => new Date(dateB) - new Date(dateA)).map(([date, data]) => (
-                        <div key={date} className="bg-white rounded-xl shadow-lg p-6 w-full max-w-4xl mb-8 border border-purple-200">
-                            <button 
-                                onClick={() => toggleDateExpansion(date)}
-                                className="w-full flex justify-between items-center text-3xl font-bold text-purple-800 mb-4 text-center bg-purple-100 p-3 rounded-lg hover:bg-purple-200 transition-colors duration-200"
-                            >
-                                <span>Fecha: {date} ({data.matches.length} partidos)</span>
-                                {expandedDates.has(date) ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
-                            </button>
-                            
-                            {expandedDates.has(date) && (
-                                <>
-                                    <h4 className="text-xl font-semibold text-blue-700 mb-3">Partidos del Dia:</h4>
-                                    <div className="grid grid-cols-1 gap-3 mb-6">
-                                        {data.matches.map((match) => (
-                                            <div key={match.id} className="bg-gray-50 p-3 rounded-lg shadow-sm border border-gray-100">
-                                                {editingMatchId === match.id ? (
-                                                    <div>
-                                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                                                            <div>
-                                                                <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 1:</label>
-                                                                {renderPlayerInput(editedMatch.team1Player1, setEditedMatch, 'team1Player1', true)}
-                                                                {renderPlayerInput(editedMatch.team1Player2, setEditedMatch, 'team1Player2', true)}
+                    {Object.keys(groupedMatches).length === 0 ? (
+                        <p className="text-center text-gray-500">No hay resumenes de partidos disponibles.</p>
+                    ) : (
+                        Object.entries(groupedMatches).sort(([dateA], [dateB]) => new Date(dateB) - new Date(dateA)).map(([date, data]) => (
+                            <div key={date} className="bg-white rounded-xl shadow-lg p-6 w-full max-w-4xl mb-8 border border-purple-200">
+                                <button 
+                                    onClick={() => toggleDateExpansion(date)}
+                                    className="w-full flex justify-between items-center text-3xl font-bold text-purple-800 mb-4 text-center bg-purple-100 p-3 rounded-lg hover:bg-purple-200 transition-colors duration-200"
+                                >
+                                    <span>Fecha: {date} ({data.matches.length} partidos)</span>
+                                    {expandedDates.has(date) ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
+                                </button>
+                                
+                                {expandedDates.has(date) && (
+                                    <>
+                                        <h4 className="text-xl font-semibold text-blue-700 mb-3">Partidos del Dia:</h4>
+                                        <div className="grid grid-cols-1 gap-3 mb-6">
+                                            {data.matches.map((match) => (
+                                                <div key={match.id} className="bg-gray-50 p-3 rounded-lg shadow-sm border border-gray-100">
+                                                    {editingMatchId === match.id ? (
+                                                        <div>
+                                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                                                <div>
+                                                                    <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 1:</label>
+                                                                    {renderPlayerInput(editedMatch.team1Player1, setEditedMatch, 'team1Player1', true)}
+                                                                    {renderPlayerInput(editedMatch.team1Player2, setEditedMatch, 'team1Player2', true)}
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 2:</label>
+                                                                    {renderPlayerInput(editedMatch.team2Player1, setEditedMatch, 'team2Player1', true)}
+                                                                    {renderPlayerInput(editedMatch.team2Player2, setEditedMatch, 'team2Player2', true)}
+                                                                </div>
                                                             </div>
-                                                            <div>
-                                                                <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 2:</label>
-                                                                {renderPlayerInput(editedMatch.team2Player1, setEditedMatch, 'team2Player1', true)}
-                                                                {renderPlayerInput(editedMatch.team2Player2, setEditedMatch, 'team2Player2', true)}
+                                                            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                                                                <div>
+                                                                    <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Eq. 1 (Opcional):</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        name="scoreTeam1"
+                                                                        value={editedMatch.scoreTeam1}
+                                                                        onChange={handleEditedMatchOtherInputChange}
+                                                                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Eq. 2 (Opcional):</label>
+                                                                    <input
+                                                                        type="number"
+                                                                        name="scoreTeam2"
+                                                                        value={editedMatch.scoreTeam2}
+                                                                        onChange={handleEditedMatchOtherInputChange}
+                                                                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                                                    />
+                                                                </div>
+                                                                <div>
+                                                                    <label className="block text-gray-700 text-sm font-bold mb-2">Fecha:</label>
+                                                                    <input
+                                                                        type="date"
+                                                                        name="date"
+                                                                        value={editedMatch.date}
+                                                                        onChange={handleEditedMatchOtherInputChange}
+                                                                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                                                    />
+                                                                </div>
                                                             </div>
-                                                        </div>
-                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                                                            <div>
-                                                                <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Eq. 1 (Opcional):</label>
-                                                                <input
-                                                                    type="number"
-                                                                    name="scoreTeam1"
-                                                                    value={editedMatch.scoreTeam1}
+                                                            <div className="mb-4">
+                                                                <label className="block text-gray-700 text-sm font-bold mb-2">Comentario (Opcional):</label>
+                                                                <textarea
+                                                                    name="comment"
+                                                                    value={editedMatch.comment}
                                                                     onChange={handleEditedMatchOtherInputChange}
                                                                     className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                                                    placeholder="Escribe un comentario sobre el partido"
                                                                 />
                                                             </div>
-                                                            <div>
-                                                                <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Eq. 2 (Opcional):</label>
-                                                                <input
-                                                                    type="number"
-                                                                    name="scoreTeam2"
-                                                                    value={editedMatch.scoreTeam2}
-                                                                    onChange={handleEditedMatchOtherInputChange}
-                                                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                                                />
-                                                            </div>
-                                                            <div>
-                                                                <label className="block text-gray-700 text-sm font-bold mb-2">Fecha:</label>
-                                                                <input
-                                                                    type="date"
-                                                                    name="date"
-                                                                    value={editedMatch.date}
-                                                                    onChange={handleEditedMatchOtherInputChange}
-                                                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                                                />
+                                                            <div className="flex justify-end space-x-2">
+                                                                <button
+                                                                    onClick={saveEditedMatch}
+                                                                    className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
+                                                                >
+                                                                    <Save className="mr-1" size={18} /> Guardar
+                                                                </button>
+                                                                <button
+                                                                    onClick={cancelEditing}
+                                                                    className="bg-gray-400 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
+                                                                >
+                                                                    <XCircle className="mr-1" size={18} /> Cancelar
+                                                                </button>
                                                             </div>
                                                         </div>
-                                                        <div className="mb-4">
-                                                            <label className="block text-gray-700 text-sm font-bold mb-2">Comentario (Opcional):</label>
-                                                            <textarea
-                                                                name="comment"
-                                                                value={editedMatch.comment}
-                                                                onChange={handleEditedMatchOtherInputChange}
-                                                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                                                placeholder="Escribe un comentario sobre el partido"
-                                                            />
-                                                        </div>
-                                                        <div className="flex justify-end space-x-2">
-                                                            <button
-                                                                onClick={saveEditedMatch}
-                                                                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                                                            >
-                                                                <Save className="mr-1" size={18} /> Guardar
-                                                            </button>
-                                                            <button
-                                                                onClick={cancelEditing}
-                                                                className="bg-gray-400 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                                                            >
-                                                                <XCircle className="mr-1" size={18} /> Cancelar
-                                                            </button>
-                                                        </div>
-                                                    </div>
-                                                ) : (
-                                                    <div>
-                                                        <p className="text-md font-semibold text-blue-800 mb-1">
-                                                            {match.team1Players.join(' y ')} vs {match.team2Players.join(' y ')}
-                                                        </p>
-                                                        <p className="text-lg font-bold text-purple-600 mb-1">
-                                                            Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuacion no registrada'}
-                                                        </p>
-                                                        <p className="text-sm text-green-700 font-semibold mb-2">
-                                                            Ganador: {match.winner !== 'N/A' ? match.winner : 'No determinado'}
-                                                        </p>
-                                                        {match.comment && (
-                                                            <p className="text-sm text-gray-600 mb-2">Comentario: {match.comment}</p>
-                                                        )}
-                                                        <p className="text-xs text-gray-500 mt-1">
-                                                            Cargado por: <span className="font-semibold">{match.loadedBy || 'Desconocido'}</span> el <span className="font-semibold">{match.timestamp ? new Date(match.timestamp.toDate()).toLocaleString() : 'N/A'}</span>
-                                                        </p>
-                                                        {match.editHistory && match.editHistory.length > 0 && (
-                                                            <div className="text-xs text-gray-500 mt-1">
-                                                                Historial de Ediciones:
-                                                                <ul className="list-disc list-inside ml-2">
-                                                                    {match.editHistory.map((edit, idx) => (
-                                                                        <li key={idx}>
-                                                                            <span className="font-semibold">{edit.editedBy}</span> el <span className="font-semibold">{edit.editedTimestamp ? new Date(edit.editedTimestamp.toDate()).toLocaleString() : 'N/A'}</span>: {edit.changes.join(', ')}
-                                                                        </li>
-                                                                    ))}
-                                                                </ul>
+                                                    ) : (
+                                                        <div>
+                                                            <p className="text-md font-semibold text-blue-800 mb-1">
+                                                                {(match.team1Players || []).join(' y ') || 'N/A'} vs {(match.team2Players || []).join(' y ') || 'N/A'}
+                                                            </p>
+                                                            <p className="text-lg font-bold text-purple-600 mb-1">
+                                                                Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuacion no registrada'}
+                                                            </p>
+                                                            <p className="text-sm text-green-700 font-semibold mb-2">
+                                                                Ganador: {match.winner || 'No determinado'}
+                                                            </p>
+                                                            {match.comment && (
+                                                                <p className="text-sm text-gray-600 mb-2">Comentario: {match.comment}</p>
+                                                            )}
+                                                            <p className="text-xs text-gray-500 mt-1">
+                                                                Cargado por: <span className="font-semibold">{match.loadedBy || 'Desconocido'}</span> el <span className="font-semibold">{match.timestamp ? new Date(match.timestamp.toDate()).toLocaleString() : 'N/A'}</span>
+                                                            </p>
+                                                            {match.editHistory && match.editHistory.length > 0 && (
+                                                                <div className="text-xs text-gray-500 mt-1">
+                                                                    Historial de Ediciones:
+                                                                    <ul className="list-disc list-inside ml-2">
+                                                                        {match.editHistory.map((edit, idx) => (
+                                                                            <li key={idx}>
+                                                                                <span className="font-semibold">{edit.editedBy}</span> el <span className="font-semibold">{edit.editedTimestamp ? new Date(edit.editedTimestamp.toDate()).toLocaleString() : 'N/A'}</span>: {edit.changes.join(', ')}
+                                                                            </li>
+                                                                        ))}
+                                                                    </ul>
+                                                                </div>
+                                                            )}
+                                                            <div className="flex justify-end space-x-2">
+                                                                <button
+                                                                    onClick={() => startEditing(match)}
+                                                                    className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded-full text-sm focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
+                                                                >
+                                                                    <Edit className="mr-1" size={16} /> Editar
+                                                                </button>
+                                                                <button
+                                                                    onClick={() => confirmDeleteMatch(match)}
+                                                                    className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded-full text-sm focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
+                                                                >
+                                                                    <Trash2 className="mr-1" size={16} /> Eliminar
+                                                                </button>
                                                             </div>
-                                                        )}
-                                                        <div className="flex justify-end space-x-2">
-                                                            <button
-                                                                onClick={() => startEditing(match)}
-                                                                className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded-full text-sm focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                                                            >
-                                                                <Edit className="mr-1" size={16} /> Editar
-                                                            </button>
-                                                            <button
-                                                                onClick={() => confirmDeleteMatch(match)}
-                                                                className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded-full text-sm focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                                                            >
-                                                                <Trash2 className="mr-1" size={16} /> Eliminar
-                                                            </button>
                                                         </div>
-                                                    </div>
-                                                )}
-                                            </div>
-                                        ))}
-                                    </div>
-
-                                    <h4 className="text-xl font-semibold text-blue-700 mb-3">Resumen de Jugadores:</h4>
-                                    {Object.keys(data.summary).length === 0 ? (
-                                        <p className="text-gray-500">No hay datos de resumen para esta fecha.</p>
-                                    ) : (
-                                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
-                                            {Object.entries(data.summary).map(([player, stats]) => (
-                                                <div key={player} className="bg-blue-100 p-3 rounded-lg shadow-sm border border-blue-200 flex justify-between items-center">
-                                                    <div>
-                                                        <p className="font-bold text-blue-800">{player}</p>
-                                                        <p className="text-gray-700">Jugados: {stats.played}</p>
-                                                        <p className="text-green-700">Ganados: {stats.won}</p>
-                                                        <p className="text-red-700">Perdidos: {stats.lost}</p>
-                                                    </div>
-                                                    <div className="flex items-center">
-                                                        <label htmlFor={`paid-${date}-${player}`} className="mr-2 text-gray-700">Pago:</label>
-                                                        <input
-                                                            type="checkbox"
-                                                            id={`paid-${date}-${player}`}
-                                                            checked={stats.paid || false}
-                                                            onChange={(e) => handlePaidChange(date, player, e.target.checked)}
-                                                            className="form-checkbox h-5 w-5 text-green-600 rounded focus:ring-green-500"
-                                                        />
-                                                    </div>
+                                                    )}
                                                 </div>
                                             ))}
                                         </div>
-                                    )}
-                                </>
-                            )}
-                        </div>
-                    ))
-                )}
-            </div>
 
-            {showConfirmModal && (
-                <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
-                    <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
-                        <h3 className="text-xl font-bold text-gray-800 mb-4">Confirmar Eliminacion</h3>
-                        <p className="text-gray-600 mb-6">
-                            Estas seguro de que quieres eliminar el partido del {matchToDelete?.date} entre {matchToDelete?.team1Players.join(' y ')} vs {matchToDelete?.team2Players.join(' y ')}?
-                        </p>
-                        <div className="flex justify-center space-x-4">
-                            <button
-                                onClick={deleteMatch}
-                                className="bg-red-600 hover:bg-red-800 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transform transition-transform duration-200 hover:scale-105"
-                            >
-                                Si, Eliminar
-                            </button>
-                            <button
-                                onClick={() => setShowConfirmModal(false)}
-                                className="bg-gray-400 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transform transition-transform duration-200 hover:scale-105"
-                            >
-                                Cancelar
-                            </button>
+                                        <h4 className="text-xl font-semibold text-blue-700 mb-3">Resumen de Jugadores:</h4>
+                                        {Object.keys(data.summary).length === 0 ? (
+                                            <p className="text-gray-500">No hay datos de resumen para esta fecha.</p>
+                                        ) : (
+                                            <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
+                                                {Object.entries(data.summary).map(([player, stats]) => (
+                                                    <div key={player} className="bg-blue-100 p-3 rounded-lg shadow-sm border border-blue-200 flex justify-between items-center">
+                                                        <div>
+                                                            <p className="font-bold text-blue-800">{player}</p>
+                                                            <p className="text-gray-700">Jugados: {stats.played}</p>
+                                                            <p className="text-green-700">Ganados: {stats.won}</p>
+                                                            <p className="text-red-700">Perdidos: {stats.lost}</p>
+                                                        </div>
+                                                        <div className="flex items-center">
+                                                            <label htmlFor={`paid-${date}-${player}`} className="mr-2 text-gray-700">Pago:</label>
+                                                            <input
+                                                                type="checkbox"
+                                                                id={`paid-${date}-${player}`}
+                                                                checked={stats.paid || false}
+                                                                onChange={(e) => handlePaidChange(date, player, e.target.checked)}
+                                                                className="form-checkbox h-5 w-5 text-green-600 rounded focus:ring-green-500"
+                                                            />
+                                                        </div>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                        )}
+                                    </>
+                                )}
+                            </div>
+                        ))
+                    )}
+                </div>
+
+                {showConfirmModal && (
+                    <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
+                        <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
+                            <h3 className="text-xl font-bold text-gray-800 mb-4">Confirmar Eliminacion</h3>
+                            <p className="text-gray-600 mb-6">
+                                Estas seguro de que quieres eliminar el partido del {matchToDelete?.date || 'N/A'} entre {(matchToDelete?.team1Players || []).join(' y ') || 'N/A'} vs {(matchToDelete?.team2Players || []).join(' y ') || 'N/A'}?
+                            </p>
+                            <div className="flex justify-center space-x-4">
+                                <button
+                                    onClick={deleteMatch}
+                                    className="bg-red-600 hover:bg-red-800 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transform transition-transform duration-200 hover:scale-105"
+                                >
+                                    Si, Eliminar
+                                </button>
+                                <button
+                                    onClick={() => setShowConfirmModal(false)}
+                                    className="bg-gray-400 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transform transition-transform duration-200 hover:scale-105"
+                                >
+                                    Cancelar
+                                </button>
+                            </div>
                         </div>
                     </div>
-                </div>
-            )}
-        </div>
+                )}
+            </div>
+        </ErrorBoundary>
     );
 }
 
