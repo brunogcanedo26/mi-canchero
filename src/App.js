@@ -12,7 +12,7 @@ import {
     setDoc,
     Timestamp
 } from 'firebase/firestore';
-import { PlusCircle, Trash2, Edit, Save, XCircle, ChevronDown, ChevronUp, Download, LogIn, LogOut } from 'lucide-react';
+import { PlusCircle, Trash2, Edit, Save, XCircle, ChevronDown, ChevronUp, Download, LogIn, LogOut, BarChart2 } from 'lucide-react';
 
 // Firebase configuration and initialization
 const firebaseConfig = process.env.REACT_APP_FIREBASE_CONFIG ? JSON.parse(process.env.REACT_APP_FIREBASE_CONFIG) : {};
@@ -23,20 +23,20 @@ const auth = getAuth(app);
 // Global variables for Canvas environment
 const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
 
-// Predefined list of players for match entry
+// Predefined list of players for match entry, sorted alphabetically
 const playerList = [
-    "Ale Perrone", "Alexis", "Ariel", "Bruno", "Condor", "Daniel", "Diego Balazo", "Elvis", "Ezequiel",
-    "Facundo", "Federico", "Fito", "Franco", "Gaby Mecanico", "German", "Guillermo", "Hugo", "Ivan",
-    "Javier", "Julian Rugna", "Julian Olivieri", "Lautaro", "Leandro", "Lucy", "Luigi", "Luis",
-    "Marcelo Zurdo", "Marcelo", "Mariano", "Mario Arriola", "Martin", "Matias", "Maxi", "Mono",
-    "Hector Musico", "Nacho", "Nico Ciudad", "Raul", "Sosa", "Roberto", "Rodrigo", "Coreano",
-    "Ruben", "Sergio", "Tano", "Tito", "Vasco", "Joni", "Zurdo Diaz", "Zurdo Ruben"
-];
+    "Ale Perrone", "Alexis", "Ariel", "Bruno", "Condor", "Coreano", "Daniel", "Diego Balazo", "Elvis", 
+    "Ezequiel", "Facundo", "Federico", "Fito", "Franco", "Gaby Mecanico", "German", "Guillermo", "Hector Musico", 
+    "Hugo", "Ivan", "Javier", "Joni", "Julian Olivieri", "Julian Rugna", "Lautaro", "Leandro", "Lucy", "Luigi", 
+    "Luis", "Marcelo", "Marcelo Zurdo", "Mariano", "Mario Arriola", "Martin", "Matias", "Maxi", "Mono", "Nacho", 
+    "Nico Ciudad", "Raul", "Roberto", "Rodrigo", "Ruben", "Sergio", "Sosa", "Tano", "Tito", "Vasco", 
+    "Zurdo Diaz", "Zurdo Ruben"
+].sort();
 
-// Predefined list of players for the welcome screen dropdown
+// Predefined list of players for the welcome screen dropdown, sorted alphabetically
 const welcomePlayerList = [
-    "Bruno", "Ruben", "Zurdo Diaz", "Ezequiel", "Ariel", "Mono", "Otro"
-];
+    "Ariel", "Bruno", "Ezequiel", "Mono", "Otro", "Ruben", "Zurdo Diaz"
+].sort();
 
 // Hardcoded PINs for demonstration (HIGHLY INSECURE IN REAL APPLICATIONS)
 const playerPins = {
@@ -61,6 +61,7 @@ function App() {
         team2Player2: { value: '', type: 'dropdown' },
         scoreTeam1: '',
         scoreTeam2: '',
+        comment: '', // New field for comments
         date: new Date().toISOString().split('T')[0], 
     });
     const [userId, setUserId] = useState(null);
@@ -72,6 +73,7 @@ function App() {
     const [errorMessage, setErrorMessage] = useState('');
     const [groupedMatches, setGroupedMatches] = useState({}); 
     const [expandedDates, setExpandedDates] = useState(new Set()); 
+    const [showStats, setShowStats] = useState(false); // State for stats page
 
     // New state for the welcome screen
     const [showWelcomeScreen, setShowWelcomeScreen] = useState(true);
@@ -80,6 +82,13 @@ function App() {
     const [welcomePin, setWelcomePin] = useState('');
     const [welcomeScreenError, setWelcomeScreenError] = useState('');
     const [loadedByPlayer, setLoadedByPlayer] = useState('');
+
+    // Stats page filters
+    const [statsPlayerFilter, setStatsPlayerFilter] = useState('');
+    const [statsDateFrom, setStatsDateFrom] = useState('');
+    const [statsDateTo, setStatsDateTo] = useState('');
+    const [statsWeekFilter, setStatsWeekFilter] = useState('');
+    const [statsResultFilter, setStatsResultFilter] = useState(''); // '', 'won', 'lost', 'played'
 
     useEffect(() => {
         const setupFirebase = async () => {
@@ -107,83 +116,78 @@ function App() {
     }, []);
 
     useEffect(() => {
-        if (userId) { 
-            const matchesCollectionRef = collection(db, `artifacts/${appId}/matches`);
-            const dailySummariesCollectionRef = collection(db, `artifacts/${appId}/dailySummaries`);
+        const matchesCollectionRef = collection(db, `artifacts/${appId}/matches`);
+        const dailySummariesCollectionRef = collection(db, `artifacts/${appId}/dailySummaries`);
 
-            const unsubscribeMatches = onSnapshot(matchesCollectionRef, (matchesSnapshot) => {
-                const fetchedMatches = matchesSnapshot.docs.map(doc => ({
-                    id: doc.id,
-                    ...doc.data()
-                }));
-                fetchedMatches.sort((a, b) => new Date(b.date) - new Date(a.date)); 
-                setMatches(fetchedMatches);
-                setErrorMessage(''); 
+        const unsubscribeMatches = onSnapshot(matchesCollectionRef, (matchesSnapshot) => {
+            const fetchedMatches = matchesSnapshot.docs.map(doc => ({
+                id: doc.id,
+                ...doc.data()
+            }));
+            fetchedMatches.sort((a, b) => new Date(b.date) - new Date(a.date)); 
+            setMatches(fetchedMatches);
+            setErrorMessage(''); 
 
-                const unsubscribeDailySummaries = onSnapshot(dailySummariesCollectionRef, (dailySummariesSnapshot) => {
-                    const fetchedDailySummaries = {};
-                    dailySummariesSnapshot.docs.forEach(doc => {
-                        fetchedDailySummaries[doc.id] = doc.data().players || {};
-                    });
-
-                    const grouped = {};
-                    fetchedMatches.forEach(match => {
-                        const date = match.date; 
-                        if (!grouped[date]) {
-                            grouped[date] = {
-                                matches: [],
-                                summary: {}
-                            };
-                        }
-                        grouped[date].matches.push(match);
-
-                        const allPlayersInMatch = [...match.team1Players, ...match.team2Players];
-                        allPlayersInMatch.forEach(player => {
-                            if (!grouped[date].summary[player]) {
-                                grouped[date].summary[player] = { played: 0, won: 0, lost: 0, paid: false };
-                            }
-                            grouped[date].summary[player].played++;
-                            if (fetchedDailySummaries[date] && fetchedDailySummaries[date][player]) {
-                                grouped[date].summary[player].paid = fetchedDailySummaries[date][player].paid;
-                            }
-                        });
-
-                        if (match.winner && match.winner !== 'Empate' && match.winner !== 'N/A') {
-                            if (match.winner.startsWith('Equipo 1')) {
-                                match.team1Players.forEach(player => {
-                                    grouped[date].summary[player].won++;
-                                });
-                                match.team2Players.forEach(player => {
-                                    grouped[date].summary[player].lost++;
-                                });
-                            } else if (match.winner.startsWith('Equipo 2')) {
-                                match.team2Players.forEach(player => {
-                                    grouped[date].summary[player].won++;
-                                });
-                                match.team1Players.forEach(player => {
-                                    grouped[date].summary[player].lost++;
-                                });
-                            }
-                        }
-                    });
-                    setGroupedMatches(grouped);
-                }, (error) => {
-                    console.error("Error fetching daily summaries:", error);
-                    setErrorMessage("Error al cargar los resumenes diarios.");
+            const unsubscribeDailySummaries = onSnapshot(dailySummariesCollectionRef, (dailySummariesSnapshot) => {
+                const fetchedDailySummaries = {};
+                dailySummariesSnapshot.docs.forEach(doc => {
+                    fetchedDailySummaries[doc.id] = doc.data().players || {};
                 });
 
-                return () => unsubscribeDailySummaries();
+                const grouped = {};
+                fetchedMatches.forEach(match => {
+                    const date = match.date; 
+                    if (!grouped[date]) {
+                        grouped[date] = {
+                            matches: [],
+                            summary: {}
+                        };
+                    }
+                    grouped[date].matches.push(match);
+
+                    const allPlayersInMatch = [...match.team1Players, ...match.team2Players];
+                    allPlayersInMatch.forEach(player => {
+                        if (!grouped[date].summary[player]) {
+                            grouped[date].summary[player] = { played: 0, won: 0, lost: 0, paid: false };
+                        }
+                        grouped[date].summary[player].played++;
+                        if (fetchedDailySummaries[date] && fetchedDailySummaries[date][player]) {
+                            grouped[date].summary[player].paid = fetchedDailySummaries[date][player].paid;
+                        }
+                    });
+
+                    if (match.winner && match.winner !== 'Empate' && match.winner !== 'N/A') {
+                        if (match.winner.startsWith('Equipo 1')) {
+                            match.team1Players.forEach(player => {
+                                grouped[date].summary[player].won++;
+                            });
+                            match.team2Players.forEach(player => {
+                                grouped[date].summary[player].lost++;
+                            });
+                        } else if (match.winner.startsWith('Equipo 2')) {
+                            match.team2Players.forEach(player => {
+                                grouped[date].summary[player].won++;
+                            });
+                            match.team1Players.forEach(player => {
+                                grouped[date].summary[player].lost++;
+                            });
+                        }
+                    }
+                });
+                setGroupedMatches(grouped);
             }, (error) => {
-                console.error("Error fetching matches:", error);
-                setErrorMessage("Error al cargar los partidos. Por favor, intenta de nuevo.");
+                console.error("Error fetching daily summaries:", error);
+                setErrorMessage("Error al cargar los resumenes diarios.");
             });
 
-            return () => unsubscribeMatches();
-        } else {
-            setMatches([]); 
-            setGroupedMatches({}); 
-        }
-    }, [userId]); 
+            return () => unsubscribeDailySummaries();
+        }, (error) => {
+            console.error("Error fetching matches:", error);
+            setErrorMessage("Error al cargar los partidos. Por favor, intenta de nuevo.");
+        });
+
+        return () => unsubscribeMatches();
+    }, []); 
 
     const handlePlayerDropdownChange = (e, playerKey, isEdit = false) => {
         const { value } = e.target;
@@ -252,7 +256,7 @@ function App() {
 
         const team1Players = [newMatch.team1Player1.value, newMatch.team1Player2.value];
         const team2Players = [newMatch.team2Player1.value, newMatch.team2Player2.value];
-        const { date } = newMatch; 
+        const { date, comment } = newMatch; 
 
         if (team1Players[0] === '' || team1Players[1] === '' ||
             team2Players[0] === '' || team2Players[1] === '' || !date) {
@@ -269,7 +273,6 @@ function App() {
             return;
         }
 
-        // Validar que no haya jugadores repetidos entre equipos
         const allPlayers = [...team1Players, ...team2Players];
         const uniquePlayers = new Set(allPlayers);
         if (uniquePlayers.size !== allPlayers.length) {
@@ -313,6 +316,7 @@ function App() {
                 scoreTeam1: score1, 
                 scoreTeam2: score2, 
                 date,
+                comment, // Save comment
                 winner,
                 loadedBy: loadedByPlayer,
                 timestamp: Timestamp.now(),
@@ -325,6 +329,7 @@ function App() {
                 team2Player2: { value: '', type: 'dropdown' },
                 scoreTeam1: '',
                 scoreTeam2: '',
+                comment: '',
                 date: new Date().toISOString().split('T')[0],
             });
             setErrorMessage('');
@@ -342,6 +347,14 @@ function App() {
     const deleteMatch = async () => {
         if (!userId || !matchToDelete) return;
         try {
+            // Save deleted match info
+            await addDoc(collection(db, `artifacts/${appId}/deletedMatches`), {
+                originalMatch: matchToDelete,
+                deletedBy: loadedByPlayer,
+                deletedTimestamp: Timestamp.now()
+            });
+
+            // Delete the match
             await deleteDoc(doc(db, `artifacts/${appId}/matches`, matchToDelete.id)); 
             setShowConfirmModal(false);
             setMatchToDelete(null);
@@ -364,6 +377,7 @@ function App() {
             team1Player2: { value: match.team1Players[1], type: isPredefinedPlayer(match.team1Players[1]) ? 'dropdown' : 'custom' },
             team2Player1: { value: match.team2Players[0], type: isPredefinedPlayer(match.team2Players[0]) ? 'dropdown' : 'custom' },
             team2Player2: { value: match.team2Players[1], type: isPredefinedPlayer(match.team2Players[1]) ? 'dropdown' : 'custom' },
+            comment: match.comment || '',
         };
         setEditingMatchId(match.id);
         setEditedMatch(transformedEditedMatch);
@@ -380,7 +394,7 @@ function App() {
 
         const team1Players = [editedMatch.team1Player1.value, editedMatch.team1Player2.value];
         const team2Players = [editedMatch.team2Player1.value, editedMatch.team2Player2.value];
-        const { date } = editedMatch; 
+        const { date, comment } = editedMatch; 
 
         if (team1Players[0] === '' || team1Players[1] === '' ||
             team2Players[0] === '' || team2Players[1] === '' || !date) {
@@ -397,7 +411,6 @@ function App() {
             return;
         }
 
-        // Validar que no haya jugadores repetidos entre equipos
         const allPlayers = [...team1Players, ...team2Players];
         const uniquePlayers = new Set(allPlayers);
         if (uniquePlayers.size !== allPlayers.length) {
@@ -434,10 +447,33 @@ function App() {
             winner = 'N/A';
         }
 
+        // Compare with original match to log changes
+        const originalMatch = matches.find(m => m.id === editedMatch.id);
+        const changes = [];
+        if (originalMatch.team1Players.join() !== team1Players.join()) {
+            changes.push(`Equipo 1 cambiado de ${originalMatch.team1Players.join(' y ')} a ${team1Players.join(' y ')}`);
+        }
+        if (originalMatch.team2Players.join() !== team2Players.join()) {
+            changes.push(`Equipo 2 cambiado de ${originalMatch.team2Players.join(' y ')} a ${team2Players.join(' y ')}`);
+        }
+        if (originalMatch.scoreTeam1 !== score1) {
+            changes.push(`Puntuacion Equipo 1 cambiada de ${originalMatch.scoreTeam1 || 'N/A'} a ${score1 || 'N/A'}`);
+        }
+        if (originalMatch.scoreTeam2 !== score2) {
+            changes.push(`Puntuacion Equipo 2 cambiada de ${originalMatch.scoreTeam2 || 'N/A'} a ${score2 || 'N/A'}`);
+        }
+        if (originalMatch.date !== date) {
+            changes.push(`Fecha cambiada de ${originalMatch.date} a ${date}`);
+        }
+        if (originalMatch.comment !== comment) {
+            changes.push(`Comentario cambiado de "${originalMatch.comment || 'N/A'}" a "${comment || 'N/A'}"`);
+        }
+
         try {
             const newEditEntry = {
                 editedBy: loadedByPlayer,
                 editedTimestamp: Timestamp.now(),
+                changes: changes.length > 0 ? changes : ['Edicion menor']
             };
 
             await updateDoc(doc(db, `artifacts/${appId}/matches`, editedMatch.id), {
@@ -446,6 +482,7 @@ function App() {
                 scoreTeam1: score1, 
                 scoreTeam2: score2, 
                 date,
+                comment, // Save comment
                 winner,
                 editHistory: [...(editedMatch.editHistory || []), newEditEntry] 
             });
@@ -491,6 +528,7 @@ function App() {
             "Equipo 2 Puntuacion",
             "Equipo 1 - Gano?",
             "Equipo 2 - Gano?",
+            "Comentario",
             "Cargado por",
             "Historial de Ediciones"
         ];
@@ -508,9 +546,10 @@ function App() {
             const team2Won = match.winner.startsWith('Equipo 2') ? 'Si' : 'No';
             
             const loadedBy = match.loadedBy || 'Desconocido';
+            const comment = match.comment || '';
             
             const editHistoryString = (match.editHistory || [])
-                .map(edit => `${edit.editedBy} (${new Date(edit.editedTimestamp.toDate()).toLocaleString()})`)
+                .map(edit => `${edit.editedBy} (${new Date(edit.editedTimestamp.toDate()).toLocaleString()}): ${edit.changes.join(', ')}`)
                 .join('; ');
 
             return [
@@ -528,6 +567,7 @@ function App() {
                 score2,
                 team1Won,
                 team2Won,
+                comment,
                 loadedBy,
                 editHistoryString
             ].map(item => `"${String(item).replace(/"/g, '""')}"`).join(',');
@@ -576,6 +616,7 @@ function App() {
 
         setLoadedByPlayer(playerToLoad);
         setShowWelcomeScreen(false);
+        setShowStats(false);
         setWelcomePin('');
         setCustomWelcomePlayerName('');
     };
@@ -595,17 +636,234 @@ function App() {
             team2Player2: { value: '', type: 'dropdown' },
             scoreTeam1: '',
             scoreTeam2: '',
+            comment: '',
             date: new Date().toISOString().split('T')[0],
         });
         setEditingMatchId(null);
         setEditedMatch(null);
         setExpandedDates(new Set());
+        setShowStats(false);
     };
+
+    const handleShowStats = () => {
+        setShowStats(true);
+        setShowWelcomeScreen(false);
+    };
+
+    const getWeekNumber = (date) => {
+        const d = new Date(date);
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() + 4 - (d.getDay() || 7));
+        const yearStart = new Date(d.getFullYear(), 0, 1);
+        return Math.ceil((((d - yearStart) / 86400000) + 1) / 7);
+    };
+
+    const filteredMatches = matches.filter(match => {
+        let matchesPlayer = !statsPlayerFilter || 
+            match.team1Players.includes(statsPlayerFilter) || 
+            match.team2Players.includes(statsPlayerFilter);
+
+        let matchesDate = true;
+        if (statsDateFrom && statsDateTo) {
+            matchesDate = match.date >= statsDateFrom && match.date <= statsDateTo;
+        } else if (statsDateFrom) {
+            matchesDate = match.date >= statsDateFrom;
+        } else if (statsDateTo) {
+            matchesDate = match.date <= statsDateTo;
+        }
+
+        let matchesWeek = true;
+        if (statsWeekFilter) {
+            const [year, week] = statsWeekFilter.split('-W');
+            const matchWeek = getWeekNumber(match.date);
+            matchesWeek = match.date.startsWith(year) && matchWeek === parseInt(week);
+        }
+
+        let matchesResult = true;
+        if (statsResultFilter && statsPlayerFilter) {
+            if (statsResultFilter === 'won') {
+                matchesResult = match.winner !== 'N/A' && match.winner !== 'Empate' && 
+                    ((match.winner.startsWith('Equipo 1') && match.team1Players.includes(statsPlayerFilter)) || 
+                     (match.winner.startsWith('Equipo 2') && match.team2Players.includes(statsPlayerFilter)));
+            } else if (statsResultFilter === 'lost') {
+                matchesResult = match.winner !== 'N/A' && match.winner !== 'Empate' && 
+                    ((match.winner.startsWith('Equipo 1') && match.team2Players.includes(statsPlayerFilter)) || 
+                     (match.winner.startsWith('Equipo 2') && match.team1Players.includes(statsPlayerFilter)));
+            } else if (statsResultFilter === 'played') {
+                matchesResult = true; // Already filtered by player
+            }
+        }
+
+        return matchesPlayer && matchesDate && matchesWeek && matchesResult;
+    });
+
+    const statsSummary = {};
+    filteredMatches.forEach(match => {
+        const allPlayers = [...match.team1Players, ...match.team2Players];
+        allPlayers.forEach(player => {
+            if (!statsSummary[player]) {
+                statsSummary[player] = { played: 0, won: 0, lost: 0 };
+            }
+            statsSummary[player].played++;
+            if (match.winner && match.winner !== 'Empate' && match.winner !== 'N/A') {
+                if (match.winner.startsWith('Equipo 1')) {
+                    if (match.team1Players.includes(player)) {
+                        statsSummary[player].won++;
+                    } else if (match.team2Players.includes(player)) {
+                        statsSummary[player].lost++;
+                    }
+                } else if (match.winner.startsWith('Equipo 2')) {
+                    if (match.team2Players.includes(player)) {
+                        statsSummary[player].won++;
+                    } else if (match.team1Players.includes(player)) {
+                        statsSummary[player].lost++;
+                    }
+                }
+            }
+        });
+    });
 
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-400 to-purple-600 text-white font-inter">
                 <p>Cargando aplicacion...</p>
+            </div>
+        );
+    }
+
+    if (showStats) {
+        return (
+            <div className="min-h-screen bg-gradient-to-br from-blue-400 to-purple-600 p-4 font-inter text-gray-800 flex flex-col items-center">
+                <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-4xl mb-8">
+                    <h1 className="text-4xl font-bold text-center text-purple-700 mb-6">Estadisticas de Partidos</h1>
+                    <div className="flex justify-between mb-4">
+                        <button
+                            onClick={handleExitApp}
+                            className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
+                        >
+                            <LogOut className="mr-2" size={20} /> Volver
+                        </button>
+                    </div>
+
+                    <div className="mb-8 p-4 border border-blue-200 rounded-lg bg-blue-50">
+                        <h2 className="text-2xl font-semibold text-blue-700 mb-4">Filtros</h2>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className ŧ
+                                    ="block text-gray-700 text-sm font-bold mb-2">Jugador:</label>
+                                <select
+                                    value={statsPlayerFilter}
+                                    onChange={(e) => setStatsPlayerFilter(e.target.value)}
+                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                >
+                                    <option value="">Todos los jugadores</option>
+                                    {playerList.map((player, index) => (
+                                        <option key={index} value={player}>
+                                            {player}
+                                        </option>
+                                    ))}
+                                </select>
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Resultado:</label>
+                                <select
+                                    value={statsResultFilter}
+                                    onChange={(e) => setStatsResultFilter(e.target.value)}
+                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                >
+                                    <option value="">Todos</option>
+                                    <option value="played">Jugados</option>
+                                    <option value="won">Ganados</option>
+                                    <option value="lost">Perdidos</option>
+                                </select>
+                            </div>
+                        </div>
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Fecha Desde:</label>
+                                <input
+                                    type="date"
+                                    value={statsDateFrom}
+                                    onChange={(e) => setStatsDateFrom(e.target.value)}
+                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                />
+                            </div>
+                            <div>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Fecha Hasta:</label>
+                                <input
+                                    type="date"
+                                    value={statsDateTo}
+                                    onChange={(e) => setStatsDateTo(e.target.value)}
+                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                />
+                            </div>
+                        </div>
+                        <div>
+                            <label className="block text-gray-700 text-sm font-bold mb-2">Semana (YYYY-WW):</label>
+                            <input
+                                type="week"
+                                value={statsWeekFilter}
+                                onChange={(e) => setStatsWeekFilter(e.target.value)}
+                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                            />
+                        </div>
+                    </div>
+
+                    <h2 className="text-2xl font-semibold text-purple-700 mb-4">Resumen de Estadisticas</h2>
+                    {Object.keys(statsSummary).length === 0 ? (
+                        <p className="text-gray-500">No hay datos de resumen para los filtros seleccionados.</p>
+                    ) : (
+                        <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mb-6">
+                            {Object.entries(statsSummary).map(([player, stats]) => (
+                                <div key={player} className="bg-blue-100 p-3 rounded-lg shadow-sm border border-blue-200">
+                                    <p className="font-bold text-blue-800">{player}</p>
+                                    <p className="text-gray-700">Jugados: {stats.played}</p>
+                                    <p className="text-green-700">Ganados: {stats.won}</p>
+                                    <p className="text-red-700">Perdidos: {stats.lost}</p>
+                                </div>
+                            ))}
+                        </div>
+                    )}
+
+                    <h2 className="text-2xl font-semibold text-purple-700 mb-4">Lista de Partidos</h2>
+                    {filteredMatches.length === 0 ? (
+                        <p className="text-gray-500">No hay partidos para los filtros seleccionados.</p>
+                    ) : (
+                        <div className="grid grid-cols-1 gap-3">
+                            {filteredMatches.map((match, index) => (
+                                <div key={match.id} className="bg-gray-50 p-3 rounded-lg shadow-sm border border-gray-100">
+                                    <p className="text-md font-semibold text-blue-800 mb-1">
+                                        #{index + 1} - {match.date}: {match.team1Players.join(' y ')} vs {match.team2Players.join(' y ')}
+                                    </p>
+                                    <p className="text-lg font-bold text-purple-600 mb-1">
+                                        Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuacion no registrada'}
+                                    </p>
+                                    <p className="text-sm text-green-700 font-semibold mb-2">
+                                        Ganador: {match.winner !== 'N/A' ? match.winner : 'No determinado'}
+                                    </p>
+                                    {match.comment && (
+                                        <p className="text-sm text-gray-600 mb-2">Comentario: {match.comment}</p>
+                                    )}
+                                    <p className="text-xs text-gray-500 mt-1">
+                                        Cargado por: <span className="font-semibold">{match.loadedBy || 'Desconocido'}</span> el <span className="font-semibold">{match.timestamp ? new Date(match.timestamp.toDate()).toLocaleString() : 'N/A'}</span>
+                                    </p>
+                                    {match.editHistory && match.editHistory.length > 0 && (
+                                        <div className="text-xs text-gray-500 mt-1">
+                                            Historial de Ediciones:
+                                            <ul className="list-disc list-inside ml-2">
+                                                {match.editHistory.map((edit, idx) => (
+                                                    <li key={idx}>
+                                                        <span className="font-semibold">{edit.editedBy}</span> el <span className="font-semibold">{edit.editedTimestamp ? new Date(edit.editedTimestamp.toDate()).toLocaleString() : 'N/A'}</span>: {edit.changes.join(', ')}
+                                                    </li>
+                                                ))}
+                                            </ul>
+                                        </div>
+                                    )}
+                                </div>
+                            ))}
+                        </div>
+                    )}
+                </div>
             </div>
         );
     }
@@ -682,12 +940,20 @@ function App() {
                             )}
                         </div>
                     )}
-                    <button
-                        onClick={handleWelcomeEnter}
-                        className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
-                    >
-                        <LogIn className="mr-3" size={24} /> Ingresar
-                    </button>
+                    <div className="flex flex-col space-y-4">
+                        <button
+                            onClick={handleWelcomeEnter}
+                            className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
+                        >
+                            <LogIn className="mr-3" size={24} /> Ingresar
+                        </button>
+                        <button
+                            onClick={handleShowStats}
+                            className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
+                        >
+                            <BarChart2 className="mr-3" size={24} /> Ver Estadisticas
+                        </button>
+                    </div>
                 </div>
             </div>
         );
@@ -765,7 +1031,7 @@ function App() {
                             {renderPlayerInput(newMatch.team2Player2, setNewMatch, 'team2Player2')}
                         </div>
                     </div>
-                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                         <div>
                             <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Equipo 1 (Opcional):</label>
                             <input
@@ -796,6 +1062,16 @@ function App() {
                                 className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
                             />
                         </div>
+                    </div>
+                    <div className="mb-4">
+                        <label className="block text-gray-700 text-sm font-bold mb-2">Comentario (Opcional):</label>
+                        <textarea
+                            name="comment"
+                            value={newMatch.comment}
+                            onChange={handleNewMatchOtherInputChange}
+                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                            placeholder="Escribe un comentario sobre el partido"
+                        />
                     </div>
                     <button
                         onClick={addMatch}
@@ -848,7 +1124,7 @@ function App() {
                                                                 {renderPlayerInput(editedMatch.team2Player2, setEditedMatch, 'team2Player2', true)}
                                                             </div>
                                                         </div>
-                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
+                                                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                                             <div>
                                                                 <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Eq. 1 (Opcional):</label>
                                                                 <input
@@ -880,6 +1156,16 @@ function App() {
                                                                 />
                                                             </div>
                                                         </div>
+                                                        <div className="mb-4">
+                                                            <label className="block text-gray-700 text-sm font-bold mb-2">Comentario (Opcional):</label>
+                                                            <textarea
+                                                                name="comment"
+                                                                value={editedMatch.comment}
+                                                                onChange={handleEditedMatchOtherInputChange}
+                                                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                                                placeholder="Escribe un comentario sobre el partido"
+                                                            />
+                                                        </div>
                                                         <div className="flex justify-end space-x-2">
                                                             <button
                                                                 onClick={saveEditedMatch}
@@ -906,6 +1192,9 @@ function App() {
                                                         <p className="text-sm text-green-700 font-semibold mb-2">
                                                             Ganador: {match.winner !== 'N/A' ? match.winner : 'No determinado'}
                                                         </p>
+                                                        {match.comment && (
+                                                            <p className="text-sm text-gray-600 mb-2">Comentario: {match.comment}</p>
+                                                        )}
                                                         <p className="text-xs text-gray-500 mt-1">
                                                             Cargado por: <span className="font-semibold">{match.loadedBy || 'Desconocido'}</span> el <span className="font-semibold">{match.timestamp ? new Date(match.timestamp.toDate()).toLocaleString() : 'N/A'}</span>
                                                         </p>
@@ -915,7 +1204,7 @@ function App() {
                                                                 <ul className="list-disc list-inside ml-2">
                                                                     {match.editHistory.map((edit, idx) => (
                                                                         <li key={idx}>
-                                                                            <span className="font-semibold">{edit.editedBy}</span> el <span className="font-semibold">{edit.editedTimestamp ? new Date(edit.editedTimestamp.toDate()).toLocaleString() : 'N/A'}</span>
+                                                                            <span className="font-semibold">{edit.editedBy}</span> el <span className="font-semibold">{edit.editedTimestamp ? new Date(edit.editedTimestamp.toDate()).toLocaleString() : 'N/A'}</span>: {edit.changes.join(', ')}
                                                                         </li>
                                                                     ))}
                                                                 </ul>
