@@ -14,7 +14,7 @@ import {
 } from 'firebase/firestore';
 import { PlusCircle, Trash2, Edit, Save, XCircle, Download, LogIn, LogOut, BarChart2 } from 'lucide-react';
 import Calendar from 'react-calendar'; // Import react-calendar
-import 'react-calendar/dist/Calendar.css'; // Import default styles
+import './styles/Calendar.css'; // Import default styles
 
 // Firebase configuration and initialization
 const firebaseConfig = process.env.REACT_APP_FIREBASE_CONFIG ? JSON.parse(process.env.REACT_APP_FIREBASE_CONFIG) : {};
