@@ -10,7 +10,7 @@ import {
     deleteDoc, 
     updateDoc,
     setDoc,
-    Timestamp // Import Timestamp from Firestore
+    Timestamp
 } from 'firebase/firestore';
 import { PlusCircle, Trash2, Edit, Save, XCircle, ChevronDown, ChevronUp, Download, LogIn, LogOut } from 'lucide-react';
 
@@ -23,7 +23,7 @@ const auth = getAuth(app);
 // Global variables for Canvas environment
 const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
 
-// Predefined list of players for match entry (original list)
+// Predefined list of players for match entry
 const playerList = [
     "Ale Perrone", "Alexis", "Ariel", "Bruno", "Condor", "Daniel", "Diego Balazo", "Elvis", "Ezequiel",
     "Facundo", "Federico", "Fito", "Franco", "Gaby Mecanico", "German", "Guillermo", "Hugo", "Ivan",
@@ -35,18 +35,18 @@ const playerList = [
 
 // Predefined list of players for the welcome screen dropdown
 const welcomePlayerList = [
-    "Bruno", "Ruben", "Zurdo Díaz", "Ezequiel", "Ariel", "Mono", "Otro" // Added "Otro" here
+    "Bruno", "Ruben", "Zurdo Diaz", "Ezequiel", "Ariel", "Mono", "Otro"
 ];
 
 // Hardcoded PINs for demonstration (HIGHLY INSECURE IN REAL APPLICATIONS)
 const playerPins = {
     "Bruno": "1234",
     "Ruben": "5678",
-    "Zurdo Díaz": "9012",
+    "Zurdo Diaz": "9012",
     "Ezequiel": "3456",
     "Ariel": "7890",
     "Mono": "2345",
-    "Otro": "1111", // Default PIN for "Otro"
+    "Otro": "1111",
 };
 
 // Helper function to check if a player name is in the predefined list
@@ -76,19 +76,18 @@ function App() {
     // New state for the welcome screen
     const [showWelcomeScreen, setShowWelcomeScreen] = useState(true);
     const [selectedWelcomePlayer, setSelectedWelcomePlayer] = useState('');
-    const [customWelcomePlayerName, setCustomWelcomePlayerName] = useState(''); // New state for custom player name
-    const [welcomePin, setWelcomePin] = useState(''); // New state for the PIN input
+    const [customWelcomePlayerName, setCustomWelcomePlayerName] = useState('');
+    const [welcomePin, setWelcomePin] = useState('');
     const [welcomeScreenError, setWelcomeScreenError] = useState('');
-    const [loadedByPlayer, setLoadedByPlayer] = useState(''); // New state to store who loaded the app
+    const [loadedByPlayer, setLoadedByPlayer] = useState('');
 
     useEffect(() => {
         const setupFirebase = async () => {
             try {
-                // Sign in anonymously to get a userId for data storage
                 await signInAnonymously(auth);
             } catch (error) {
                 console.error("Error during Firebase anonymous authentication:", error);
-                setErrorMessage("Error al iniciar la sesión anónima de Firebase.");
+                setErrorMessage("Error al iniciar la sesion anonima de Firebase.");
             }
         };
 
@@ -117,19 +116,16 @@ function App() {
                     id: doc.id,
                     ...doc.data()
                 }));
-                // Sort by date in memory (descending)
                 fetchedMatches.sort((a, b) => new Date(b.date) - new Date(a.date)); 
                 setMatches(fetchedMatches);
                 setErrorMessage(''); 
 
-                // Fetch daily summaries to merge paid status
                 const unsubscribeDailySummaries = onSnapshot(dailySummariesCollectionRef, (dailySummariesSnapshot) => {
                     const fetchedDailySummaries = {};
                     dailySummariesSnapshot.docs.forEach(doc => {
                         fetchedDailySummaries[doc.id] = doc.data().players || {};
                     });
 
-                    // Group matches by date and calculate summary
                     const grouped = {};
                     fetchedMatches.forEach(match => {
                         const date = match.date; 
@@ -141,20 +137,17 @@ function App() {
                         }
                         grouped[date].matches.push(match);
 
-                        // Update summary for each player in the match
                         const allPlayersInMatch = [...match.team1Players, ...match.team2Players];
                         allPlayersInMatch.forEach(player => {
                             if (!grouped[date].summary[player]) {
                                 grouped[date].summary[player] = { played: 0, won: 0, lost: 0, paid: false };
                             }
                             grouped[date].summary[player].played++;
-                            // Merge paid status from fetchedDailySummaries
                             if (fetchedDailySummaries[date] && fetchedDailySummaries[date][player]) {
                                 grouped[date].summary[player].paid = fetchedDailySummaries[date][player].paid;
                             }
                         });
 
-                        // Determine winner and update won/lost counts
                         if (match.winner && match.winner !== 'Empate' && match.winner !== 'N/A') {
                             if (match.winner.startsWith('Equipo 1')) {
                                 match.team1Players.forEach(player => {
@@ -176,23 +169,22 @@ function App() {
                     setGroupedMatches(grouped);
                 }, (error) => {
                     console.error("Error fetching daily summaries:", error);
-                    setErrorMessage("Error al cargar los resúmenes diarios.");
+                    setErrorMessage("Error al cargar los resumenes diarios.");
                 });
 
-                return () => unsubscribeDailySummaries(); // Cleanup daily summaries listener
+                return () => unsubscribeDailySummaries();
             }, (error) => {
                 console.error("Error fetching matches:", error);
-                setErrorMessage("Error al cargar los partidos. Por favor, inténtalo de nuevo.");
+                setErrorMessage("Error al cargar los partidos. Por favor, intenta de nuevo.");
             });
 
-            return () => unsubscribeMatches(); // Cleanup matches listener
+            return () => unsubscribeMatches();
         } else {
             setMatches([]); 
             setGroupedMatches({}); 
         }
     }, [userId]); 
 
-    // Handles changes for player dropdowns (new match and edit mode)
     const handlePlayerDropdownChange = (e, playerKey, isEdit = false) => {
         const { value } = e.target;
         let currentMatchState = isEdit ? editedMatch : newMatch;
@@ -211,7 +203,6 @@ function App() {
         }
     };
 
-    // Handles changes for custom player text inputs (new match and edit mode)
     const handleCustomPlayerInputChange = (e, playerKey, isEdit = false) => {
         const { value } = e.target;
         let currentMatchState = isEdit ? editedMatch : newMatch;
@@ -223,28 +214,24 @@ function App() {
         });
     };
 
-    // Handles changes for score and date inputs (new match)
     const handleNewMatchOtherInputChange = (e) => {
         const { name, value } = e.target;
         setNewMatch({ ...newMatch, [name]: value });
     };
 
-    // Handles changes for score and date inputs (edit mode)
     const handleEditedMatchOtherInputChange = (e) => {
         const { name, value } = e.target;
         setEditedMatch({ ...editedMatch, [name]: value });
     };
 
-    // Handle change for "Pagó" checkbox
     const handlePaidChange = async (date, player, isPaid) => {
         if (!userId) {
-            setErrorMessage("La aplicación no está lista. Por favor, espera o recarga.");
+            setErrorMessage("La aplicacion no esta lista. Por favor, espera o recarga.");
             return;
         }
 
         try {
             const dailySummaryDocRef = doc(db, `artifacts/${appId}/users/${userId}/dailySummaries`, date);
-            // Use setDoc with merge: true to update only the 'paid' status for the specific player
             await setDoc(dailySummaryDocRef, {
                 players: {
                     [player]: { paid: isPaid }
@@ -253,14 +240,13 @@ function App() {
             setErrorMessage('');
         } catch (e) {
             console.error("Error updating paid status:", e);
-            setErrorMessage("Error al actualizar el estado de pago. Inténtalo de nuevo.");
+            setErrorMessage("Error al actualizar el estado de pago. Intenta de nuevo.");
         }
     };
 
-
     const addMatch = async () => {
         if (!userId) {
-            setErrorMessage("La aplicación no está lista. Por favor, espera o recarga.");
+            setErrorMessage("La aplicacion no esta lista. Por favor, espera o recarga.");
             return;
         }
 
@@ -268,14 +254,12 @@ function App() {
         const team2Players = [newMatch.team2Player1.value, newMatch.team2Player2.value];
         const { date } = newMatch; 
 
-        // Validate player selections and date
         if (team1Players[0] === '' || team1Players[1] === '' ||
             team2Players[0] === '' || team2Players[1] === '' || !date) {
             setErrorMessage("Por favor, completa todos los campos de jugadores y la fecha.");
             return;
         }
 
-        // Check for duplicate players within the same team
         if (team1Players[0] === team1Players[1]) {
             setErrorMessage("Los jugadores del Equipo 1 no pueden ser el mismo.");
             return;
@@ -288,24 +272,22 @@ function App() {
         let score1 = newMatch.scoreTeam1;
         let score2 = newMatch.scoreTeam2;
 
-        // Validate and parse scores only if they are not empty
         if (score1 !== '') {
             score1 = parseInt(score1);
             if (isNaN(score1) || score1 < 0) {
-                setErrorMessage("La puntuación del Equipo 1 debe ser un número válido y no negativo.");
+                setErrorMessage("La puntuacion del Equipo 1 debe ser un numero valido y no negativo.");
                 return;
             }
         }
         if (score2 !== '') {
             score2 = parseInt(score2);
             if (isNaN(score2) || score2 < 0) {
-                setErrorMessage("La puntuación del Equipo 2 debe ser un número válido y no negativo.");
+                setErrorMessage("La puntuacion del Equipo 2 debe ser un numero valido y no negativo.");
                 return;
             }
         }
 
         let winner = 'Empate';
-        // Determine winner only if both scores are provided and valid numbers
         if (typeof score1 === 'number' && typeof score2 === 'number') {
             if (score1 > score2) {
                 winner = `Equipo 1 (${team1Players.join(' y ')})`;
@@ -313,7 +295,7 @@ function App() {
                 winner = `Equipo 2 (${team2Players.join(' y ')})`;
             }
         } else {
-            winner = 'N/A'; // Or any other indicator for no scores entered
+            winner = 'N/A';
         }
 
         try {
@@ -324,9 +306,9 @@ function App() {
                 scoreTeam2: score2, 
                 date,
                 winner,
-                loadedBy: loadedByPlayer, // Add the player who loaded the app
-                timestamp: Timestamp.now(), // Use Firestore Timestamp for creation
-                editHistory: [] // Initialize empty edit history
+                loadedBy: loadedByPlayer,
+                timestamp: Timestamp.now(),
+                editHistory: []
             });
             setNewMatch({
                 team1Player1: { value: '', type: 'dropdown' },
@@ -340,7 +322,7 @@ function App() {
             setErrorMessage('');
         } catch (e) {
             console.error("Error adding document: ", e);
-            setErrorMessage("Error al guardar el partido. Inténtalo de nuevo.");
+            setErrorMessage("Error al guardar el partido. Intenta de nuevo.");
         }
     };
 
@@ -358,13 +340,13 @@ function App() {
             setErrorMessage('');
         } catch (e) {
             console.error("Error deleting document: ", e);
-            setErrorMessage("Error al eliminar el partido. Inténtalo de nuevo.");
+            setErrorMessage("Error al eliminar el partido. Intenta de nuevo.");
         }
     };
 
     const startEditing = (match) => {
         if (!userId) {
-            setErrorMessage("La aplicación no está lista. Por favor, espera o recarga.");
+            setErrorMessage("La aplicacion no esta lista. Por favor, espera o recarga.");
             return;
         }
         
@@ -392,14 +374,12 @@ function App() {
         const team2Players = [editedMatch.team2Player1.value, editedMatch.team2Player2.value];
         const { date } = editedMatch; 
 
-        // Validate player selections and date for editing
         if (team1Players[0] === '' || team1Players[1] === '' ||
             team2Players[0] === '' || team2Players[1] === '' || !date) {
             setErrorMessage("Por favor, completa todos los campos de jugadores y la fecha para editar.");
             return;
         }
 
-        // Check for duplicate players within the same team
         if (team1Players[0] === team1Players[1]) {
             setErrorMessage("Los jugadores del Equipo 1 no pueden ser el mismo.");
             return;
@@ -412,24 +392,22 @@ function App() {
         let score1 = editedMatch.scoreTeam1;
         let score2 = editedMatch.scoreTeam2;
 
-        // Validate and parse scores only if they are not empty
         if (score1 !== '') {
             score1 = parseInt(score1);
             if (isNaN(score1) || score1 < 0) {
-                setErrorMessage("La puntuación del Equipo 1 debe ser un número válido y no negativo.");
+                setErrorMessage("La puntuacion del Equipo 1 debe ser un numero valido y no negativo.");
                 return;
             }
         }
         if (score2 !== '') {
             score2 = parseInt(score2);
             if (isNaN(score2) || score2 < 0) {
-                setErrorMessage("La puntuación del Equipo 2 debe ser un número válido y no negativo.");
+                setErrorMessage("La puntuacion del Equipo 2 debe ser un numero valido y no negativo.");
                 return;
             }
         }
 
         let winner = 'Empate';
-        // Determine winner only if both scores are provided and valid numbers
         if (typeof score1 === 'number' && typeof score2 === 'number') {
             if (score1 > score2) {
                 winner = `Equipo 1 (${team1Players.join(' y ')})`;
@@ -437,17 +415,15 @@ function App() {
                 winner = `Equipo 2 (${team2Players.join(' y ')})`;
             }
         } else {
-            winner = 'N/A'; // Or any other indicator for no scores entered
+            winner = 'N/A';
         }
 
         try {
-            // Create a new edit entry
             const newEditEntry = {
                 editedBy: loadedByPlayer,
                 editedTimestamp: Timestamp.now(),
             };
 
-            // Update the document, pushing the new edit entry to the editHistory array
             await updateDoc(doc(db, `artifacts/${appId}/users/${userId}/matches`, editedMatch.id), {
                 team1Players, 
                 team2Players, 
@@ -455,7 +431,6 @@ function App() {
                 scoreTeam2: score2, 
                 date,
                 winner,
-                // Append new edit entry to the existing history
                 editHistory: [...(editedMatch.editHistory || []), newEditEntry] 
             });
             setEditingMatchId(null);
@@ -463,11 +438,10 @@ function App() {
             setErrorMessage('');
         } catch (e) {
             console.error("Error updating document: ", e);
-            setErrorMessage("Error al actualizar el partido. Inténtalo de nuevo.");
+            setErrorMessage("Error al actualizar el partido. Intenta de nuevo.");
         }
     };
 
-    // Toggle expanded state for a given date
     const toggleDateExpansion = (date) => {
         setExpandedDates(prev => {
             const newSet = new Set(prev);
@@ -480,7 +454,6 @@ function App() {
         });
     };
 
-    // Function to download match history as CSV
     const downloadMatchHistory = () => {
         if (matches.length === 0) {
             setErrorMessage("No hay partidos para descargar.");
@@ -488,40 +461,38 @@ function App() {
         }
 
         const headers = [
-            "Número",
+            "Numero",
             "Fecha",
             "Equipo 1 - Jugador 1",
-            "Equipo 1 - Jugador 1 Pagó?",
+            "Equipo 1 - Jugador 1 Pago?",
             "Equipo 1 - Jugador 2",
-            "Equipo 1 - Jugador 2 Pagó?",
+            "Equipo 1 - Jugador 2 Pago?",
             "Equipo 2 - Jugador 1",
-            "Equipo 2 - Jugador 1 Pagó?",
+            "Equipo 2 - Jugador 1 Pago?",
             "Equipo 2 - Jugador 2",
-            "Equipo 2 - Jugador 2 Pagó?",
-            "Equipo 1 Puntuación",
-            "Equipo 2 Puntuación",
-            "Equipo 1 - Ganó?",
-            "Equipo 2 - Ganó?",
+            "Equipo 2 - Jugador 2 Pago?",
+            "Equipo 1 Puntuacion",
+            "Equipo 2 Puntuacion",
+            "Equipo 1 - Gano?",
+            "Equipo 2 - Gano?",
             "Cargado por",
-            "Historial de Ediciones" // Single column for all edits
+            "Historial de Ediciones"
         ];
 
         const rows = matches.map((match, index) => {
-            // Get paid status from groupedMatches.summary for the specific date and player
-            const team1Player1Paid = groupedMatches[match.date]?.summary[match.team1Players[0]]?.paid ? 'Sí' : 'No';
-            const team1Player2Paid = groupedMatches[match.date]?.summary[match.team1Players[1]]?.paid ? 'Sí' : 'No';
-            const team2Player1Paid = groupedMatches[match.date]?.summary[match.team2Players[0]]?.paid ? 'Sí' : 'No';
-            const team2Player2Paid = groupedMatches[match.date]?.summary[match.team2Players[1]]?.paid ? 'Sí' : 'No';
+            const team1Player1Paid = groupedMatches[match.date]?.summary[match.team1Players[0]]?.paid ? 'Si' : 'No';
+            const team1Player2Paid = groupedMatches[match.date]?.summary[match.team1Players[1]]?.paid ? 'Si' : 'No';
+            const team2Player1Paid = groupedMatches[match.date]?.summary[match.team2Players[0]]?.paid ? 'Si' : 'No';
+            const team2Player2Paid = groupedMatches[match.date]?.summary[match.team2Players[1]]?.paid ? 'Si' : 'No';
 
             const score1 = match.scoreTeam1 !== '' ? match.scoreTeam1 : 'N/A';
             const score2 = match.scoreTeam2 !== '' ? match.scoreTeam2 : 'N/A';
 
-            const team1Won = match.winner.startsWith('Equipo 1') ? 'Sí' : 'No';
-            const team2Won = match.winner.startsWith('Equipo 2') ? 'Sí' : 'No';
+            const team1Won = match.winner.startsWith('Equipo 1') ? 'Si' : 'No';
+            const team2Won = match.winner.startsWith('Equipo 2') ? 'Si' : 'No';
             
             const loadedBy = match.loadedBy || 'Desconocido';
             
-            // Format edit history into a single string
             const editHistoryString = (match.editHistory || [])
                 .map(edit => `${edit.editedBy} (${new Date(edit.editedTimestamp.toDate()).toLocaleString()})`)
                 .join('; ');
@@ -542,8 +513,8 @@ function App() {
                 team1Won,
                 team2Won,
                 loadedBy,
-                editHistoryString // Add the formatted edit history
-            ].map(item => `"${String(item).replace(/"/g, '""')}"`).join(','); // Escape quotes and join
+                editHistoryString
+            ].map(item => `"${String(item).replace(/"/g, '""')}"`).join(',');
         });
 
         const csvContent = [headers.map(header => `"${header}"`).join(','), ...rows].join('\n');
@@ -557,9 +528,8 @@ function App() {
         setErrorMessage('Historial descargado exitosamente.');
     };
 
-    // Handle "Ingresar" button click on welcome screen
     const handleWelcomeEnter = () => {
-        setWelcomeScreenError(''); // Clear previous errors
+        setWelcomeScreenError('');
 
         let playerToLoad = selectedWelcomePlayer;
 
@@ -576,34 +546,32 @@ function App() {
             playerToLoad = customWelcomePlayerName.trim();
         }
 
-        const expectedPin = playerPins[selectedWelcomePlayer]; // Still use selectedWelcomePlayer for PIN lookup
+        const expectedPin = playerPins[selectedWelcomePlayer];
         if (!expectedPin) {
             setWelcomeScreenError('PIN no configurado para este jugador. Contacta al administrador.');
             return;
         }
 
         if (welcomePin !== expectedPin) {
-            setWelcomeScreenError('PIN incorrecto. Inténtalo de nuevo.');
-            setWelcomePin(''); // Clear PIN input on incorrect attempt
+            setWelcomeScreenError('PIN incorrecto. Intenta de nuevo.');
+            setWelcomePin('');
             return;
         }
 
-        setLoadedByPlayer(playerToLoad); // Set who loaded the app
+        setLoadedByPlayer(playerToLoad);
         setShowWelcomeScreen(false);
-        setWelcomePin(''); // Clear PIN after successful login
-        setCustomWelcomePlayerName(''); // Clear custom name input
+        setWelcomePin('');
+        setCustomWelcomePlayerName('');
     };
 
-    // Handle "Salir" button click on main app screen
     const handleExitApp = () => {
-        setShowWelcomeScreen(true); // Go back to welcome screen
-        setSelectedWelcomePlayer(''); // Clear selected player
-        setWelcomePin(''); // Clear PIN
-        setLoadedByPlayer(''); // Clear who loaded the app
-        setErrorMessage(''); // Clear any error messages
-        setWelcomeScreenError(''); // Clear welcome screen errors
-        setCustomWelcomePlayerName(''); // Clear custom name
-        // Optionally, clear other states if you want a fresh start
+        setShowWelcomeScreen(true);
+        setSelectedWelcomePlayer('');
+        setWelcomePin('');
+        setLoadedByPlayer('');
+        setErrorMessage('');
+        setWelcomeScreenError('');
+        setCustomWelcomePlayerName('');
         setNewMatch({
             team1Player1: { value: '', type: 'dropdown' },
             team1Player2: { value: '', type: 'dropdown' },
@@ -611,23 +579,21 @@ function App() {
             team2Player2: { value: '', type: 'dropdown' },
             scoreTeam1: '',
             scoreTeam2: '',
-            date: new Date().toISOString().split('T')[0], 
+            date: new Date().toISOString().split('T')[0],
         });
         setEditingMatchId(null);
         setEditedMatch(null);
         setExpandedDates(new Set());
     };
 
-
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-400 to-purple-600 text-white font-inter">
-                <p>Cargando aplicación...</p>
+                <p>Cargando aplicacion...</p>
             </div>
         );
     }
 
-    // Render Welcome Screen if showWelcomeScreen is true
     if (showWelcomeScreen) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-400 to-purple-600 p-4 font-inter text-gray-800">
@@ -644,15 +610,15 @@ function App() {
 
                     <div className="mb-6">
                         <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="welcome-player-select">
-                            ¿Quién Ingresa?
+                            Quien Ingresa?
                         </label>
                         <select
                             id="welcome-player-select"
                             value={selectedWelcomePlayer}
                             onChange={(e) => {
                                 setSelectedWelcomePlayer(e.target.value);
-                                setWelcomePin(''); // Clear PIN when player changes
-                                setCustomWelcomePlayerName(''); // Clear custom name when player changes
+                                setWelcomePin('');
+                                setCustomWelcomePlayerName('');
                             }}
                             className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg"
                         >
@@ -664,7 +630,7 @@ function App() {
                             ))}
                         </select>
                     </div>
-                    {selectedWelcomePlayer === 'Otro' && ( // Show custom name input for "Otro"
+                    {selectedWelcomePlayer === 'Otro' && (
                         <div className="mb-6">
                             <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="custom-player-name-input">
                                 Nombre del Jugador:
@@ -679,13 +645,13 @@ function App() {
                             />
                         </div>
                     )}
-                    {selectedWelcomePlayer && ( // Show PIN input only if a player is selected (including "Otro")
+                    {selectedWelcomePlayer && (
                         <div className="mb-6">
                             <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="welcome-pin-input">
-                                Ingresa tu PIN (4 dígitos):
+                                Ingresa tu PIN (4 digitos):
                             </label>
                             <input
-                                type="password" // Use type "password" for security
+                                type="password"
                                 id="welcome-pin-input"
                                 value={welcomePin}
                                 onChange={(e) => setWelcomePin(e.target.value)}
@@ -695,7 +661,7 @@ function App() {
                             />
                             {selectedWelcomePlayer === 'Otro' && (
                                 <p className="text-xs text-gray-500 mt-1">
-                                    Si selecciona "Otro" ingresa el código 1111
+                                    Si selecciona "Otro" ingresa el codigo 1111
                                 </p>
                             )}
                         </div>
@@ -711,7 +677,6 @@ function App() {
         );
     }
 
-    // Helper function to render player input fields (dropdown + optional text input)
     const renderPlayerInput = (playerState, setPlayerState, playerKey, isEdit = false) => (
         <>
             <select
@@ -739,14 +704,13 @@ function App() {
         </>
     );
 
-
     return (
         <div className="min-h-screen bg-gradient-to-br from-blue-400 to-purple-600 p-4 font-inter text-gray-800 flex flex-col items-center">
             <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-4xl mb-8">
                 <h1 className="text-4xl font-bold text-center text-purple-700 mb-6">Control de Partidos de Pelota Paleta</h1>
                 {userId && (
                     <p className="text-sm text-center text-gray-500 mb-4">
-                        ID de Usuario (Anónimo): <span className="font-mono bg-gray-100 p-1 rounded">{userId}</span>
+                        ID de Usuario (Anonimo): <span className="font-mono bg-gray-100 p-1 rounded">{userId}</span>
                     </p>
                 )}
                 {loadedByPlayer && (
@@ -787,7 +751,7 @@ function App() {
                     </div>
                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                         <div>
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Equipo 1 (Opcional):</label>
+                            <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Equipo 1 (Opcional):</label>
                             <input
                                 type="number"
                                 name="scoreTeam1"
@@ -797,7 +761,7 @@ function App() {
                             />
                         </div>
                         <div>
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Equipo 2 (Opcional):</label>
+                            <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Equipo 2 (Opcional):</label>
                             <input
                                 type="number"
                                 name="scoreTeam2"
@@ -821,7 +785,7 @@ function App() {
                         onClick={addMatch}
                         className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105"
                     >
-                        <PlusCircle className="mr-2" size={20} /> Añadir Partido
+                        <PlusCircle className="mr-2" size={20} /> Agregar Partido
                     </button>
                 </div>
 
@@ -836,28 +800,25 @@ function App() {
                 </div>
 
                 {Object.keys(groupedMatches).length === 0 ? (
-                    <p className="text-center text-gray-500">No hay resúmenes de partidos disponibles.</p>
+                    <p className="text-center text-gray-500">No hay resumenes de partidos disponibles.</p>
                 ) : (
-                    // Sort dates in descending order for display
                     Object.entries(groupedMatches).sort(([dateA], [dateB]) => new Date(dateB) - new Date(dateA)).map(([date, data]) => (
                         <div key={date} className="bg-white rounded-xl shadow-lg p-6 w-full max-w-4xl mb-8 border border-purple-200">
                             <button 
                                 onClick={() => toggleDateExpansion(date)}
                                 className="w-full flex justify-between items-center text-3xl font-bold text-purple-800 mb-4 text-center bg-purple-100 p-3 rounded-lg hover:bg-purple-200 transition-colors duration-200"
                             >
-                                <span>Fecha: {date} ({data.matches.length} partidos)</span> {/* Display match count */}
+                                <span>Fecha: {date} ({data.matches.length} partidos)</span>
                                 {expandedDates.has(date) ? <ChevronUp size={24} /> : <ChevronDown size={24} />}
                             </button>
                             
                             {expandedDates.has(date) && (
                                 <>
-                                    {/* Matches for the day */}
-                                    <h4 className="text-xl font-semibold text-blue-700 mb-3">Partidos del Día:</h4>
+                                    <h4 className="text-xl font-semibold text-blue-700 mb-3">Partidos del Dia:</h4>
                                     <div className="grid grid-cols-1 gap-3 mb-6">
                                         {data.matches.map((match) => (
                                             <div key={match.id} className="bg-gray-50 p-3 rounded-lg shadow-sm border border-gray-100">
                                                 {editingMatchId === match.id ? (
-                                                    // Edit mode (same as before, but within the date group)
                                                     <div>
                                                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
                                                             <div>
@@ -873,7 +834,7 @@ function App() {
                                                         </div>
                                                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-6">
                                                             <div>
-                                                                <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Eq. 1 (Opcional):</label>
+                                                                <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Eq. 1 (Opcional):</label>
                                                                 <input
                                                                     type="number"
                                                                     name="scoreTeam1"
@@ -883,7 +844,7 @@ function App() {
                                                                 />
                                                             </div>
                                                             <div>
-                                                                <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Eq. 2 (Opcional):</label>
+                                                                <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Eq. 2 (Opcional):</label>
                                                                 <input
                                                                     type="number"
                                                                     name="scoreTeam2"
@@ -919,13 +880,12 @@ function App() {
                                                         </div>
                                                     </div>
                                                 ) : (
-                                                    // Display mode
                                                     <div>
                                                         <p className="text-md font-semibold text-blue-800 mb-1">
                                                             {match.team1Players.join(' y ')} vs {match.team2Players.join(' y ')}
                                                         </p>
                                                         <p className="text-lg font-bold text-purple-600 mb-1">
-                                                            Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuación no registrada'}
+                                                            Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuacion no registrada'}
                                                         </p>
                                                         <p className="text-sm text-green-700 font-semibold mb-2">
                                                             Ganador: {match.winner !== 'N/A' ? match.winner : 'No determinado'}
@@ -965,7 +925,6 @@ function App() {
                                         ))}
                                     </div>
 
-                                    {/* Summary for the day */}
                                     <h4 className="text-xl font-semibold text-blue-700 mb-3">Resumen de Jugadores:</h4>
                                     {Object.keys(data.summary).length === 0 ? (
                                         <p className="text-gray-500">No hay datos de resumen para esta fecha.</p>
@@ -980,7 +939,7 @@ function App() {
                                                         <p className="text-red-700">Perdidos: {stats.lost}</p>
                                                     </div>
                                                     <div className="flex items-center">
-                                                        <label htmlFor={`paid-${date}-${player}`} className="mr-2 text-gray-700">Pagó:</label>
+                                                        <label htmlFor={`paid-${date}-${player}`} className="mr-2 text-gray-700">Pago:</label>
                                                         <input
                                                             type="checkbox"
                                                             id={`paid-${date}-${player}`}
@@ -1000,20 +959,19 @@ function App() {
                 )}
             </div>
 
-            {/* Confirmation Modal */}
             {showConfirmModal && (
                 <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
                     <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
-                        <h3 className="text-xl font-bold text-gray-800 mb-4">Confirmar Eliminación</h3>
+                        <h3 className="text-xl font-bold text-gray-800 mb-4">Confirmar Eliminacion</h3>
                         <p className="text-gray-600 mb-6">
-                            ¿Estás seguro de que quieres eliminar el partido del {matchToDelete?.date} entre {matchToDelete?.team1Players.join(' y ')} vs {matchToDelete?.team2Players.join(' y ')}?
+                            Estas seguro de que quieres eliminar el partido del {matchToDelete?.date} entre {matchToDelete?.team1Players.join(' y ')} vs {matchToDelete?.team2Players.join(' y ')}?
                         </p>
                         <div className="flex justify-center space-x-4">
                             <button
                                 onClick={deleteMatch}
                                 className="bg-red-600 hover:bg-red-800 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transform transition-transform duration-200 hover:scale-105"
                             >
-                                Sí, Eliminar
+                                Si, Eliminar
                             </button>
                             <button
                                 onClick={() => setShowConfirmModal(false)}
