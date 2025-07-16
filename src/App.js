@@ -10,7 +10,9 @@ import {
     deleteDoc, 
     updateDoc,
     setDoc,
-    Timestamp
+    Timestamp,
+    query,
+    limit
 } from 'firebase/firestore';
 import { PlusCircle, Trash2, Edit, Save, XCircle, Download, LogIn, LogOut, BarChart2 } from 'lucide-react';
 import Calendar from 'react-calendar';
@@ -140,7 +142,12 @@ function App() {
         const deletedMatchesCollectionRef = collection(db, `artifacts/${appId}/deletedMatches`);
         const dailySummariesCollectionRef = collection(db, `artifacts/${appId}/dailySummaries`);
 
-        const unsubscribeMatches = onSnapshot(matchesCollectionRef, (matchesSnapshot) => {
+        // Añadir limit(100) para reducir lecturas; ajustar según necesidades
+        const matchesQuery = query(matchesCollectionRef, limit(100));
+        const deletedMatchesQuery = query(deletedMatchesCollectionRef, limit(100));
+        const dailySummariesQuery = query(dailySummariesCollectionRef, limit(100));
+
+        const unsubscribeMatches = onSnapshot(matchesQuery, (matchesSnapshot) => {
             const fetchedMatches = matchesSnapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data(),
@@ -162,7 +169,7 @@ function App() {
             setErrorMessage("Error al cargar los partidos. Por favor, intenta de nuevo.");
         });
 
-        const unsubscribeDeletedMatches = onSnapshot(deletedMatchesCollectionRef, (deletedSnapshot) => {
+        const unsubscribeDeletedMatches = onSnapshot(deletedMatchesQuery, (deletedSnapshot) => {
             const fetchedDeletedMatches = deletedSnapshot.docs.map(doc => ({
                 id: doc.id,
                 ...doc.data().originalMatch,
@@ -176,7 +183,7 @@ function App() {
             setErrorMessage("Error al cargar los partidos eliminados. Por favor, intenta de nuevo.");
         });
 
-        const unsubscribeDailySummaries = onSnapshot(dailySummariesCollectionRef, (dailySummariesSnapshot) => {
+        const unsubscribeDailySummaries = onSnapshot(dailySummariesQuery, (dailySummariesSnapshot) => {
             const fetchedDailySummaries = {};
             dailySummariesSnapshot.docs.forEach(doc => {
                 fetchedDailySummaries[doc.id] = doc.data().players || {};
@@ -233,6 +240,7 @@ function App() {
             setErrorMessage("Error al cargar los resumenes diarios.");
         });
 
+        // Desuscribir todos los listeners al desmontar el componente
         return () => {
             unsubscribeMatches();
             unsubscribeDeletedMatches();
