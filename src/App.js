@@ -108,10 +108,10 @@ function App() {
 
     useEffect(() => {
         if (userId) { 
-            const userMatchesCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/matches`);
-            const dailySummariesCollectionRef = collection(db, `artifacts/${appId}/users/${userId}/dailySummaries`);
+            const matchesCollectionRef = collection(db, `artifacts/${appId}/matches`);
+            const dailySummariesCollectionRef = collection(db, `artifacts/${appId}/dailySummaries`);
 
-            const unsubscribeMatches = onSnapshot(userMatchesCollectionRef, (matchesSnapshot) => {
+            const unsubscribeMatches = onSnapshot(matchesCollectionRef, (matchesSnapshot) => {
                 const fetchedMatches = matchesSnapshot.docs.map(doc => ({
                     id: doc.id,
                     ...doc.data()
@@ -231,7 +231,7 @@ function App() {
         }
 
         try {
-            const dailySummaryDocRef = doc(db, `artifacts/${appId}/users/${userId}/dailySummaries`, date);
+            const dailySummaryDocRef = doc(db, `artifacts/${appId}/dailySummaries`, date);
             await setDoc(dailySummaryDocRef, {
                 players: {
                     [player]: { paid: isPaid }
@@ -269,6 +269,14 @@ function App() {
             return;
         }
 
+        // Validar que no haya jugadores repetidos entre equipos
+        const allPlayers = [...team1Players, ...team2Players];
+        const uniquePlayers = new Set(allPlayers);
+        if (uniquePlayers.size !== allPlayers.length) {
+            setErrorMessage("Un jugador no puede estar en ambos equipos.");
+            return;
+        }
+
         let score1 = newMatch.scoreTeam1;
         let score2 = newMatch.scoreTeam2;
 
@@ -299,7 +307,7 @@ function App() {
         }
 
         try {
-            await addDoc(collection(db, `artifacts/${appId}/users/${userId}/matches`), {
+            await addDoc(collection(db, `artifacts/${appId}/matches`), {
                 team1Players, 
                 team2Players, 
                 scoreTeam1: score1, 
@@ -334,7 +342,7 @@ function App() {
     const deleteMatch = async () => {
         if (!userId || !matchToDelete) return;
         try {
-            await deleteDoc(doc(db, `artifacts/${appId}/users/${userId}/matches`, matchToDelete.id)); 
+            await deleteDoc(doc(db, `artifacts/${appId}/matches`, matchToDelete.id)); 
             setShowConfirmModal(false);
             setMatchToDelete(null);
             setErrorMessage('');
@@ -389,6 +397,14 @@ function App() {
             return;
         }
 
+        // Validar que no haya jugadores repetidos entre equipos
+        const allPlayers = [...team1Players, ...team2Players];
+        const uniquePlayers = new Set(allPlayers);
+        if (uniquePlayers.size !== allPlayers.length) {
+            setErrorMessage("Un jugador no puede estar en ambos equipos.");
+            return;
+        }
+
         let score1 = editedMatch.scoreTeam1;
         let score2 = editedMatch.scoreTeam2;
 
@@ -424,7 +440,7 @@ function App() {
                 editedTimestamp: Timestamp.now(),
             };
 
-            await updateDoc(doc(db, `artifacts/${appId}/users/${userId}/matches`, editedMatch.id), {
+            await updateDoc(doc(db, `artifacts/${appId}/matches`, editedMatch.id), {
                 team1Players, 
                 team2Players, 
                 scoreTeam1: score1, 
