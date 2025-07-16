@@ -109,7 +109,6 @@ function App() {
     const [welcomePin, setWelcomePin] = useState('');
     const [welcomeScreenError, setWelcomeScreenError] = useState('');
     const [loadedByPlayer, setLoadedByPlayer] = useState('');
-    const [isCustomPlayer, setIsCustomPlayer] = useState(false); // Nuevo estado para rastrear si es "Otro"
 
     useEffect(() => {
         const setupFirebase = async () => {
@@ -200,11 +199,12 @@ function App() {
                     allPlayersInMatch.forEach(player => {
                         if (!player) return;
                         if (!grouped[date].summary[player]) {
-                            grouped[date].summary[player] = { played: 0, won: 0, lost: 0, paid: false };
+                            grouped[date].summary[player] = { played: 0, won: 0, lost: 0, paid: false, paymentHistory: [] };
                         }
                         grouped[date].summary[player].played++;
                         if (fetchedDailySummaries[date] && fetchedDailySummaries[date][player]) {
                             grouped[date].summary[player].paid = fetchedDailySummaries[date][player].paid;
+                            grouped[date].summary[player].paymentHistory = fetchedDailySummaries[date][player].paymentHistory || [];
                         }
                     });
 
@@ -287,9 +287,21 @@ function App() {
 
         try {
             const dailySummaryDocRef = doc(db, `artifacts/${appId}/dailySummaries`, date);
+            const paymentHistoryEntry = {
+                changedBy: loadedByPlayer,
+                action: isPaid ? 'Marcado como pagado' : 'Marcado como no pagado',
+                timestamp: Timestamp.now()
+            };
+
             await setDoc(dailySummaryDocRef, {
                 players: {
-                    [player]: { paid: isPaid }
+                    [player]: {
+                        paid: isPaid,
+                        paymentHistory: [
+                            ...(groupedMatches[date]?.summary[player]?.paymentHistory || []),
+                            paymentHistoryEntry
+                        ]
+                    }
                 }
             }, { merge: true });
             setErrorMessage('');
@@ -574,7 +586,8 @@ function App() {
             "Estado",
             "Eliminado por",
             "Fecha de Eliminacion",
-            "Historial de Ediciones"
+            "Historial de Ediciones",
+            "Historial de Pagos"
         ];
 
         const allMatches = [...matches, ...deletedMatches];
@@ -600,6 +613,15 @@ function App() {
                 .map(edit => `${edit.editedBy} (${new Date(edit.editedTimestamp.toDate()).toLocaleString()}): ${edit.changes.join(', ')}`)
                 .join('; ');
 
+            const paymentHistoryString = [
+                ...(groupedMatches[match.date]?.summary[match.team1Players[0]]?.paymentHistory || []),
+                ...(groupedMatches[match.date]?.summary[match.team1Players[1]]?.paymentHistory || []),
+                ...(groupedMatches[match.date]?.summary[match.team2Players[0]]?.paymentHistory || []),
+                ...(groupedMatches[match.date]?.summary[match.team2Players[1]]?.paymentHistory || [])
+            ]
+                .map(entry => `${entry.changedBy} (${new Date(entry.timestamp.toDate()).toLocaleString()}): ${entry.action}`)
+                .join('; ');
+
             return [
                 index + 1,
                 match.date,
@@ -620,7 +642,8 @@ function App() {
                 status,
                 deletedBy,
                 deletedTimestamp,
-                editHistoryString
+                editHistoryString,
+                paymentHistoryString
             ].map(item => `"${String(item).replace(/"/g, '""')}"`).join(',');
         });
 
@@ -651,9 +674,6 @@ function App() {
                 return;
             }
             playerToLoad = customWelcomePlayerName.trim();
-            setIsCustomPlayer(true); // Marcar como usuario personalizado
-        } else {
-            setIsCustomPlayer(false); // No es un usuario personalizado
         }
 
         const expectedPin = playerPins[selectedWelcomePlayer];
@@ -680,7 +700,6 @@ function App() {
         setSelectedWelcomePlayer('');
         setWelcomePin('');
         setLoadedByPlayer('');
-        setIsCustomPlayer(false); // Resetear el estado de usuario personalizado
         setErrorMessage('');
         setWelcomeScreenError('');
         setCustomWelcomePlayerName('');
@@ -1241,7 +1260,7 @@ function App() {
                                                         </ul>
                                                     </div>
                                                 )}
-                                                {!match.isDeleted && !isCustomPlayer && (
+                                                {!match.isDeleted && (
                                                     <div className="flex justify-end space-x-2">
                                                         <button
                                                             onClick={() => startEditing(match)}
@@ -1269,23 +1288,37 @@ function App() {
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     {Object.entries(groupedMatches[selectedDate].summary).map(([player, stats]) => (
-                                        <div key={player} className="bg-blue-100 p-3 rounded-lg shadow-sm border border-blue-200 flex justify-between items-center">
-                                            <div>
-                                                <p className="font-bold text-blue-800">{player}</p>
-                                                <p className="text-gray-700">Jugados: {stats.played}</p>
-                                                <p className="text-green-700">Ganados: {stats.won}</p>
-                                                <p className="text-red-700">Perdidos: {stats.lost}</p>
+                                        <div key={player} className="bg-blue-100 p-3 rounded-lg shadow-sm border border-blue-200">
+                                            <div className="flex justify-between items-center mb-2">
+                                                <div>
+                                                    <p className="font-bold text-blue-800">{player}</p>
+                                                    <p className="text-gray-700">Jugados: {stats.played}</p>
+                                                    <p className="text-green-700">Ganados: {stats.won}</p>
+                                                    <p className="text-red-700">Perdidos: {stats.lost}</p>
+                                                </div>
+                                                <div className="flex items-center">
+                                                    <label htmlFor={`paid-${selectedDate}-${player}`} className="mr-2 text-gray-700">Pago:</label>
+                                                    <input
+                                                        type="checkbox"
+                                                        id={`paid-${selectedDate}-${player}`}
+                                                        checked={stats.paid || false}
+                                                        onChange={(e) => handlePaidChange(selectedDate, player, e.target.checked)}
+                                                        className="form-checkbox h-5 w-5 text-green-600 rounded focus:ring-green-500"
+                                                    />
+                                                </div>
                                             </div>
-                                            <div className="flex items-center">
-                                                <label htmlFor={`paid-${selectedDate}-${player}`} className="mr-2 text-gray-700">Pago:</label>
-                                                <input
-                                                    type="checkbox"
-                                                    id={`paid-${selectedDate}-${player}`}
-                                                    checked={stats.paid || false}
-                                                    onChange={(e) => handlePaidChange(selectedDate, player, e.target.checked)}
-                                                    className="form-checkbox h-5 w-5 text-green-600 rounded focus:ring-green-500"
-                                                />
-                                            </div>
+                                            {stats.paymentHistory && stats.paymentHistory.length > 0 && (
+                                                <div className="text-xs text-gray-500 mt-1">
+                                                    Historial de Pagos:
+                                                    <ul className="list-disc list-inside ml-2">
+                                                        {stats.paymentHistory.map((entry, idx) => (
+                                                            <li key={idx}>
+                                                                <span className="font-semibold">{entry.changedBy}</span> el <span className="font-semibold">{entry.timestamp ? new Date(entry.timestamp.toDate()).toLocaleString() : 'N/A'}</span>: {entry.action}
+                                                            </li>
+                                                        ))}
+                                                    </ul>
+                                                </div>
+                                            )}
                                         </div>
                                     ))}
                                 </div>
