@@ -103,14 +103,13 @@ function App() {
     const [statsPlayerFilter, setStatsPlayerFilter] = useState('');
     const [statsDateFrom, setStatsDateFrom] = useState('');
     const [statsDateTo, setStatsDateTo] = useState('');
-
-    // New state for the welcome screen
     const [showWelcomeScreen, setShowWelcomeScreen] = useState(true);
     const [selectedWelcomePlayer, setSelectedWelcomePlayer] = useState('');
     const [customWelcomePlayerName, setCustomWelcomePlayerName] = useState('');
     const [welcomePin, setWelcomePin] = useState('');
     const [welcomeScreenError, setWelcomeScreenError] = useState('');
     const [loadedByPlayer, setLoadedByPlayer] = useState('');
+    const [isCustomPlayer, setIsCustomPlayer] = useState(false); // Nuevo estado para rastrear si es "Otro"
 
     useEffect(() => {
         const setupFirebase = async () => {
@@ -194,10 +193,8 @@ function App() {
                         summary: {}
                     };
                 }
-                // Incluir todos los partidos (activos y eliminados) en la lista de partidos
                 grouped[date].matches.push(match);
 
-                // Solo contabilizar estadísticas para partidos no eliminados
                 if (!match.isDeleted) {
                     const allPlayersInMatch = [...(match.team1Players || []), ...(match.team2Players || [])];
                     allPlayersInMatch.forEach(player => {
@@ -654,6 +651,9 @@ function App() {
                 return;
             }
             playerToLoad = customWelcomePlayerName.trim();
+            setIsCustomPlayer(true); // Marcar como usuario personalizado
+        } else {
+            setIsCustomPlayer(false); // No es un usuario personalizado
         }
 
         const expectedPin = playerPins[selectedWelcomePlayer];
@@ -680,6 +680,7 @@ function App() {
         setSelectedWelcomePlayer('');
         setWelcomePin('');
         setLoadedByPlayer('');
+        setIsCustomPlayer(false); // Resetear el estado de usuario personalizado
         setErrorMessage('');
         setWelcomeScreenError('');
         setCustomWelcomePlayerName('');
@@ -1240,7 +1241,7 @@ function App() {
                                                         </ul>
                                                     </div>
                                                 )}
-                                                {!match.isDeleted && (
+                                                {!match.isDeleted && !isCustomPlayer && (
                                                     <div className="flex justify-end space-x-2">
                                                         <button
                                                             onClick={() => startEditing(match)}
