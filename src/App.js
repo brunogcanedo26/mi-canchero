@@ -1,4 +1,4 @@
-import React, { useState, useEffect, Component } from 'react';
+import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { 
@@ -12,16 +12,21 @@ import {
     setDoc,
     Timestamp,
     query,
-    limit
+    limit,
+    where,
+    enableIndexedDbPersistence // Changed from enablePersistence
 } from 'firebase/firestore';
 import { PlusCircle, Trash2, Edit, Save, XCircle, Download, LogIn, LogOut, BarChart2 } from 'lucide-react';
 import Calendar from 'react-calendar';
-import './styles/Calendar.css'; // Usar archivo CSS local para evitar el error en Vercel
+import './styles/Calendar.css';
 
 // Firebase configuration and initialization
 const firebaseConfig = process.env.REACT_APP_FIREBASE_CONFIG ? JSON.parse(process.env.REACT_APP_FIREBASE_CONFIG) : {};
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
+enableIndexedDbPersistence(db).catch((err) => {
+    console.error("Error enabling Firestore persistence:", err);
+});
 const auth = getAuth(app);
 
 // Global variables for Canvas environment
@@ -57,7 +62,7 @@ const playerPins = {
 const isPredefinedPlayer = (playerName) => playerName && playerList.includes(playerName);
 
 // ErrorBoundary component to catch rendering errors
-class ErrorBoundary extends Component {
+class ErrorBoundary extends React.Component {
     state = { hasError: false, error: null };
 
     static getDerivedStateFromError(error) {
@@ -69,7 +74,7 @@ class ErrorBoundary extends Component {
             return (
                 <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative m-4">
                     <strong className="font-bold">Error:</strong>
-                    <span className="block sm:inline"> Ocurrio un error al renderizar la pagina. Por favor, recarga la pagina o contacta al administrador.</span>
+                    <span className="block sm:inline"> Ocurrió un error al renderizar la página. Por favor, recarga la página o contacta al administrador.</span>
                     <p className="text-sm mt-2">Detalles: {this.state.error?.message}</p>
                 </div>
             );
@@ -81,6 +86,7 @@ class ErrorBoundary extends Component {
 function App() {
     const [matches, setMatches] = useState([]);
     const [deletedMatches, setDeletedMatches] = useState([]);
+    const [fetchedDailySummaries, setFetchedDailySummaries] = useState({});
     const [newMatch, setNewMatch] = useState({
         team1Player1: { value: '', type: 'dropdown' },
         team1Player2: { value: '', type: 'dropdown' },
@@ -98,7 +104,6 @@ function App() {
     const [showConfirmModal, setShowConfirmModal] = useState(false);
     const [matchToDelete, setMatchToDelete] = useState(null);
     const [errorMessage, setErrorMessage] = useState('');
-    const [groupedMatches, setGroupedMatches] = useState({}); 
     const [selectedDate, setSelectedDate] = useState(null);
     const [calendarDate, setCalendarDate] = useState(new Date());
     const [showStats, setShowStats] = useState(false);
@@ -118,7 +123,7 @@ function App() {
                 await signInAnonymously(auth);
             } catch (error) {
                 console.error("Error during Firebase anonymous authentication:", error);
-                setErrorMessage("Error al iniciar la sesion anonima de Firebase.");
+                setErrorMessage("Error al iniciar la sesión anónima de Firebase.");
             }
         };
 
@@ -140,12 +145,16 @@ function App() {
     useEffect(() => {
         const matchesCollectionRef = collection(db, `artifacts/${appId}/matches`);
         const deletedMatchesCollectionRef = collection(db, `artifacts/${appId}/deletedMatches`);
-        const dailySummariesCollectionRef = collection(db, `artifacts/${appId}/dailySummaries`);
 
-        // Añadir limit(100) para reducir lecturas; ajustar según necesidades
         const matchesQuery = query(matchesCollectionRef, limit(100));
         const deletedMatchesQuery = query(deletedMatchesCollectionRef, limit(100));
-        const dailySummariesQuery = query(dailySummariesCollectionRef, limit(100));
+        const dailySummariesQuery = selectedDate
+            ? query(
+                  collection(db, `artifacts/${appId}/dailySummaries`),
+                  where("date", "==", selectedDate),
+                  limit(100)
+              )
+            : query(collection(db, `artifacts/${appId}/dailySummaries`), limit(100));
 
         const unsubscribeMatches = onSnapshot(matchesQuery, (matchesSnapshot) => {
             const fetchedMatches = matchesSnapshot.docs.map(doc => ({
@@ -161,9 +170,9 @@ function App() {
                 editHistory: doc.data().editHistory || [],
                 isDeleted: false
             }));
-            fetchedMatches.sort((a, b) => new Date(b.date) - new Date(a.date)); 
+            fetchedMatches.sort((a, b) => new Date(b.date) - new Date(a.date));
             setMatches(fetchedMatches);
-            setErrorMessage(''); 
+            setErrorMessage('');
         }, (error) => {
             console.error("Error fetching matches:", error);
             setErrorMessage("Error al cargar los partidos. Por favor, intenta de nuevo.");
@@ -183,70 +192,76 @@ function App() {
             setErrorMessage("Error al cargar los partidos eliminados. Por favor, intenta de nuevo.");
         });
 
-        const unsubscribeDailySummaries = onSnapshot(dailySummariesQuery, (dailySummariesSnapshot) => {
+        const unsubscribeDailySummaries = onSnapshot(dailySummariesQuery, { source: "cache" }, (dailySummariesSnapshot) => {
             const fetchedDailySummaries = {};
-            dailySummariesSnapshot.docs.forEach(doc => {
-                fetchedDailySummaries[doc.id] = doc.data().players || {};
-            });
-
-            const grouped = {};
-            const allMatches = [...matches, ...deletedMatches];
-            allMatches.forEach(match => {
-                const date = match.date || new Date().toISOString().split('T')[0];
-                if (!grouped[date]) {
-                    grouped[date] = {
-                        matches: [],
-                        summary: {}
-                    };
+            dailySummariesSnapshot.forEach(doc => {
+                const [docDate, player] = doc.id.split('_');
+                if (!fetchedDailySummaries[docDate]) {
+                    fetchedDailySummaries[docDate] = {};
                 }
-                grouped[date].matches.push(match);
-
-                if (!match.isDeleted) {
-                    const allPlayersInMatch = [...(match.team1Players || []), ...(match.team2Players || [])];
-                    allPlayersInMatch.forEach(player => {
-                        if (!player) return;
-                        if (!grouped[date].summary[player]) {
-                            grouped[date].summary[player] = { played: 0, won: 0, lost: 0, paid: false, paymentHistory: [] };
-                        }
-                        grouped[date].summary[player].played++;
-                        if (fetchedDailySummaries[date] && fetchedDailySummaries[date][player]) {
-                            grouped[date].summary[player].paid = fetchedDailySummaries[date][player].paid;
-                            grouped[date].summary[player].paymentHistory = fetchedDailySummaries[date][player].paymentHistory || [];
-                        }
-                    });
-
-                    if (match.winner && match.winner !== 'Empate' && match.winner !== 'N/A') {
-                        if (match.winner.startsWith('Equipo 1')) {
-                            (match.team1Players || []).forEach(player => {
-                                if (player) grouped[date].summary[player].won++;
-                            });
-                            (match.team2Players || []).forEach(player => {
-                                if (player) grouped[date].summary[player].lost++;
-                            });
-                        } else if (match.winner.startsWith('Equipo 2')) {
-                            (match.team2Players || []).forEach(player => {
-                                if (player) grouped[date].summary[player].won++;
-                            });
-                            (match.team1Players || []).forEach(player => {
-                                if (player) grouped[date].summary[player].lost++;
-                            });
-                        }
-                    }
-                }
+                fetchedDailySummaries[docDate][player] = doc.data();
             });
-            setGroupedMatches(grouped);
+            setFetchedDailySummaries(fetchedDailySummaries);
         }, (error) => {
             console.error("Error fetching daily summaries:", error);
-            setErrorMessage("Error al cargar los resumenes diarios.");
+            setErrorMessage("Error al cargar los resúmenes diarios.");
         });
 
-        // Desuscribir todos los listeners al desmontar el componente
         return () => {
             unsubscribeMatches();
             unsubscribeDeletedMatches();
             unsubscribeDailySummaries();
         };
-    }, [matches, deletedMatches]);
+    }, [selectedDate]);
+
+    const groupedMatches = useMemo(() => {
+        const grouped = {};
+        const allMatches = [...matches, ...deletedMatches];
+        allMatches.forEach(match => {
+            const date = match.date || new Date().toISOString().split('T')[0];
+            if (!grouped[date]) {
+                grouped[date] = {
+                    matches: [],
+                    summary: {}
+                };
+            }
+            grouped[date].matches.push(match);
+
+            if (!match.isDeleted) {
+                const allPlayersInMatch = [...(match.team1Players || []), ...(match.team2Players || [])];
+                allPlayersInMatch.forEach(player => {
+                    if (!player) return;
+                    if (!grouped[date].summary[player]) {
+                        grouped[date].summary[player] = { played: 0, won: 0, lost: 0, paid: false, paymentHistory: [] };
+                    }
+                    grouped[date].summary[player].played++;
+                    if (fetchedDailySummaries[date] && fetchedDailySummaries[date][player]) {
+                        grouped[date].summary[player].paid = fetchedDailySummaries[date][player].paid;
+                        grouped[date].summary[player].paymentHistory = fetchedDailySummaries[date][player].paymentHistory || [];
+                    }
+                });
+
+                if (match.winner && match.winner !== 'Empate' && match.winner !== 'N/A') {
+                    if (match.winner.startsWith('Equipo 1')) {
+                        (match.team1Players || []).forEach(player => {
+                            if (player) grouped[date].summary[player].won++;
+                        });
+                        (match.team2Players || []).forEach(player => {
+                            if (player) grouped[date].summary[player].lost++;
+                        });
+                    } else if (match.winner.startsWith('Equipo 2')) {
+                        (match.team2Players || []).forEach(player => {
+                            if (player) grouped[date].summary[player].won++;
+                        });
+                        (match.team1Players || []).forEach(player => {
+                            if (player) grouped[date].summary[player].lost++;
+                        });
+                    }
+                }
+            }
+        });
+        return grouped;
+    }, [matches, deletedMatches, fetchedDailySummaries]);
 
     const handlePlayerDropdownChange = (e, playerKey, isEdit = false) => {
         const { value } = e.target;
@@ -256,12 +271,12 @@ function App() {
         if (value === 'Otro (escribir)') {
             setMatchState({
                 ...currentMatchState,
-                [playerKey]: { value: '', type: 'custom' } 
+                [playerKey]: { value: '', type: 'custom' }
             });
         } else {
             setMatchState({
                 ...currentMatchState,
-                [playerKey]: { value: value, type: 'dropdown' } 
+                [playerKey]: { value: value, type: 'dropdown' }
             });
         }
     };
@@ -273,7 +288,7 @@ function App() {
 
         setMatchState({
             ...currentMatchState,
-            [playerKey]: { value: value, type: 'custom' } 
+            [playerKey]: { value: value, type: 'custom' }
         });
     };
 
@@ -289,12 +304,12 @@ function App() {
 
     const handlePaidChange = async (date, player, isPaid) => {
         if (!userId) {
-            setErrorMessage("La aplicacion no esta lista. Por favor, espera o recarga.");
+            setErrorMessage("La aplicación no está lista. Por favor, espera o recarga.");
             return;
         }
 
         try {
-            const dailySummaryDocRef = doc(db, `artifacts/${appId}/dailySummaries`, date);
+            const dailySummaryDocRef = doc(db, `artifacts/${appId}/dailySummaries`, `${date}_${player}`);
             const paymentHistoryEntry = {
                 changedBy: loadedByPlayer,
                 action: isPaid ? 'Marcado como pagado' : 'Marcado como no pagado',
@@ -302,15 +317,13 @@ function App() {
             };
 
             await setDoc(dailySummaryDocRef, {
-                players: {
-                    [player]: {
-                        paid: isPaid,
-                        paymentHistory: [
-                            ...(groupedMatches[date]?.summary[player]?.paymentHistory || []),
-                            paymentHistoryEntry
-                        ]
-                    }
-                }
+                date,
+                player,
+                paid: isPaid,
+                paymentHistory: [
+                    ...(groupedMatches[date]?.summary[player]?.paymentHistory || []),
+                    paymentHistoryEntry
+                ]
             }, { merge: true });
             setErrorMessage('');
         } catch (e) {
@@ -321,13 +334,13 @@ function App() {
 
     const addMatch = async () => {
         if (!userId) {
-            setErrorMessage("La aplicacion no esta lista. Por favor, espera o recarga.");
+            setErrorMessage("La aplicación no está lista. Por favor, espera o recarga.");
             return;
         }
 
         const team1Players = [newMatch.team1Player1.value, newMatch.team1Player2.value].filter(p => p);
         const team2Players = [newMatch.team2Player1.value, newMatch.team2Player2.value].filter(p => p);
-        const { date, comment } = newMatch; 
+        const { date, comment } = newMatch;
 
         if (team1Players.length !== 2 || team2Players.length !== 2 || !date) {
             setErrorMessage("Por favor, completa todos los campos de jugadores y la fecha.");
@@ -356,14 +369,14 @@ function App() {
         if (score1 !== '') {
             score1 = parseInt(score1);
             if (isNaN(score1) || score1 < 0) {
-                setErrorMessage("La puntuacion del Equipo 1 debe ser un numero valido y no negativo.");
+                setErrorMessage("La puntuación del Equipo 1 debe ser un número válido y no negativo.");
                 return;
             }
         }
         if (score2 !== '') {
             score2 = parseInt(score2);
             if (isNaN(score2) || score2 < 0) {
-                setErrorMessage("La puntuacion del Equipo 2 debe ser un numero valido y no negativo.");
+                setErrorMessage("La puntuación del Equipo 2 debe ser un número válido y no negativo.");
                 return;
             }
         }
@@ -381,10 +394,10 @@ function App() {
 
         try {
             await addDoc(collection(db, `artifacts/${appId}/matches`), {
-                team1Players, 
-                team2Players, 
-                scoreTeam1: score1, 
-                scoreTeam2: score2, 
+                team1Players,
+                team2Players,
+                scoreTeam1: score1,
+                scoreTeam2: score2,
                 date,
                 comment,
                 winner,
@@ -427,7 +440,7 @@ function App() {
                 deletedTimestamp: Timestamp.now()
             });
 
-            await deleteDoc(doc(db, `artifacts/${appId}/matches`, matchToDelete.id)); 
+            await deleteDoc(doc(db, `artifacts/${appId}/matches`, matchToDelete.id));
             setShowConfirmModal(false);
             setMatchToDelete(null);
             setErrorMessage('');
@@ -439,10 +452,10 @@ function App() {
 
     const startEditing = (match) => {
         if (!userId) {
-            setErrorMessage("La aplicacion no esta lista. Por favor, espera o recarga.");
+            setErrorMessage("La aplicación no está lista. Por favor, espera o recarga.");
             return;
         }
-        
+
         const transformedEditedMatch = {
             ...match,
             team1Player1: { value: match.team1Players[0] || '', type: isPredefinedPlayer(match.team1Players[0]) ? 'dropdown' : 'custom' },
@@ -466,7 +479,7 @@ function App() {
 
         const team1Players = [editedMatch.team1Player1.value, editedMatch.team1Player2.value].filter(p => p);
         const team2Players = [editedMatch.team2Player1.value, editedMatch.team2Player2.value].filter(p => p);
-        const { date, comment } = editedMatch; 
+        const { date, comment } = editedMatch;
 
         if (team1Players.length !== 2 || team2Players.length !== 2 || !date) {
             setErrorMessage("Por favor, completa todos los campos de jugadores y la fecha para editar.");
@@ -495,14 +508,14 @@ function App() {
         if (score1 !== '') {
             score1 = parseInt(score1);
             if (isNaN(score1) || score1 < 0) {
-                setErrorMessage("La puntuacion del Equipo 1 debe ser un numero valido y no negativo.");
+                setErrorMessage("La puntuación del Equipo 1 debe ser un número válido y no negativo.");
                 return;
             }
         }
         if (score2 !== '') {
             score2 = parseInt(score2);
             if (isNaN(score2) || score2 < 0) {
-                setErrorMessage("La puntuacion del Equipo 2 debe ser un numero valido y no negativo.");
+                setErrorMessage("La puntuación del Equipo 2 debe ser un número válido y no negativo.");
                 return;
             }
         }
@@ -528,10 +541,10 @@ function App() {
                 changes.push(`Equipo 2 cambiado de ${originalMatch.team2Players.join(' y ')} a ${team2Players.join(' y ')}`);
             }
             if (originalMatch.scoreTeam1 !== score1) {
-                changes.push(`Puntuacion Equipo 1 cambiada de ${originalMatch.scoreTeam1 || 'N/A'} a ${score1 || 'N/A'}`);
+                changes.push(`Puntuación Equipo 1 cambiada de ${originalMatch.scoreTeam1 || 'N/A'} a ${score1 || 'N/A'}`);
             }
             if (originalMatch.scoreTeam2 !== score2) {
-                changes.push(`Puntuacion Equipo 2 cambiada de ${originalMatch.scoreTeam2 || 'N/A'} a ${score2 || 'N/A'}`);
+                changes.push(`Puntuación Equipo 2 cambiada de ${originalMatch.scoreTeam2 || 'N/A'} a ${score2 || 'N/A'}`);
             }
             if (originalMatch.date !== date) {
                 changes.push(`Fecha cambiada de ${originalMatch.date} a ${date}`);
@@ -545,14 +558,14 @@ function App() {
             const newEditEntry = {
                 editedBy: loadedByPlayer,
                 editedTimestamp: Timestamp.now(),
-                changes: changes.length > 0 ? changes : ['Edicion menor']
+                changes: changes.length > 0 ? changes : ['Edición menor']
             };
 
             await updateDoc(doc(db, `artifacts/${appId}/matches`, editedMatch.id), {
-                team1Players, 
-                team2Players, 
-                scoreTeam1: score1, 
-                scoreTeam2: score2, 
+                team1Players,
+                team2Players,
+                scoreTeam1: score1,
+                scoreTeam2: score2,
                 date,
                 comment,
                 winner,
@@ -575,48 +588,48 @@ function App() {
         }
 
         const headers = [
-            "Numero",
+            "Número",
             "Fecha",
             "Equipo 1 - Jugador 1",
-            "Equipo 1 - Jugador 1 Pago?",
+            "Equipo 1 - Jugador 1 Pagó?",
             "Equipo 1 - Jugador 2",
-            "Equipo 1 - Jugador 2 Pago?",
+            "Equipo 1 - Jugador 2 Pagó?",
             "Equipo 2 - Jugador 1",
-            "Equipo 2 - Jugador 1 Pago?",
+            "Equipo 2 - Jugador 1 Pagó?",
             "Equipo 2 - Jugador 2",
-            "Equipo 2 - Jugador 2 Pago?",
-            "Equipo 1 Puntuacion",
-            "Equipo 2 Puntuacion",
-            "Equipo 1 - Gano?",
-            "Equipo 2 - Gano?",
+            "Equipo 2 - Jugador 2 Pagó?",
+            "Equipo 1 Puntuación",
+            "Equipo 2 Puntuación",
+            "Equipo 1 - Ganó?",
+            "Equipo 2 - Ganó?",
             "Comentario",
             "Cargado por",
             "Estado",
             "Eliminado por",
-            "Fecha de Eliminacion",
+            "Fecha de Eliminación",
             "Historial de Ediciones",
             "Historial de Pagos"
         ];
 
         const allMatches = [...matches, ...deletedMatches];
         const rows = allMatches.map((match, index) => {
-            const team1Player1Paid = groupedMatches[match.date]?.summary[match.team1Players[0]]?.paid ? 'Si' : 'No';
-            const team1Player2Paid = groupedMatches[match.date]?.summary[match.team1Players[1]]?.paid ? 'Si' : 'No';
-            const team2Player1Paid = groupedMatches[match.date]?.summary[match.team2Players[0]]?.paid ? 'Si' : 'No';
-            const team2Player2Paid = groupedMatches[match.date]?.summary[match.team2Players[1]]?.paid ? 'Si' : 'No';
+            const team1Player1Paid = groupedMatches[match.date]?.summary[match.team1Players[0]]?.paid ? 'Sí' : 'No';
+            const team1Player2Paid = groupedMatches[match.date]?.summary[match.team1Players[1]]?.paid ? 'Sí' : 'No';
+            const team2Player1Paid = groupedMatches[match.date]?.summary[match.team2Players[0]]?.paid ? 'Sí' : 'No';
+            const team2Player2Paid = groupedMatches[match.date]?.summary[match.team2Players[1]]?.paid ? 'Sí' : 'No';
 
             const score1 = match.scoreTeam1 !== '' ? match.scoreTeam1 : 'N/A';
             const score2 = match.scoreTeam2 !== '' ? match.scoreTeam2 : 'N/A';
 
-            const team1Won = match.winner && match.winner.startsWith('Equipo 1') ? 'Si' : 'No';
-            const team2Won = match.winner && match.winner.startsWith('Equipo 2') ? 'Si' : 'No';
-            
+            const team1Won = match.winner && match.winner.startsWith('Equipo 1') ? 'Sí' : 'No';
+            const team2Won = match.winner && match.winner.startsWith('Equipo 2') ? 'Sí' : 'No';
+
             const loadedBy = match.loadedBy || 'Desconocido';
             const comment = match.comment || '';
             const status = match.isDeleted ? 'Dado de Baja' : 'Activo';
             const deletedBy = match.isDeleted ? match.deletedBy || 'Desconocido' : '';
             const deletedTimestamp = match.isDeleted && match.deletedTimestamp ? new Date(match.deletedTimestamp.toDate()).toLocaleString() : '';
-            
+
             const editHistoryString = (match.editHistory || [])
                 .map(edit => `${edit.editedBy} (${new Date(edit.editedTimestamp.toDate()).toLocaleString()}): ${edit.changes.join(', ')}`)
                 .join('; ');
@@ -735,8 +748,8 @@ function App() {
     const filteredMatches = matches.filter(match => {
         if (!match || !match.date || !match.team1Players || !match.team2Players || match.isDeleted) return false;
 
-        let matchesPlayer = !statsPlayerFilter || 
-            (match.team1Players.includes(statsPlayerFilter) || 
+        let matchesPlayer = !statsPlayerFilter ||
+            (match.team1Players.includes(statsPlayerFilter) ||
              match.team2Players.includes(statsPlayerFilter));
 
         let matchesDate = true;
@@ -794,7 +807,7 @@ function App() {
     if (loading) {
         return (
             <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-400 to-purple-600 text-white font-inter">
-                <p>Cargando aplicacion...</p>
+                <p>Cargando aplicación...</p>
             </div>
         );
     }
@@ -804,7 +817,7 @@ function App() {
             <ErrorBoundary>
                 <div className="min-h-screen bg-gradient-to-br from-blue-400 to-purple-600 p-4 font-inter text-gray-800 flex flex-col items-center">
                     <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-4xl mb-8">
-                        <h1 className="text-4xl font-bold text-center text-purple-700 mb-6">Estadisticas de Partidos</h1>
+                        <h1 className="text-4xl font-bold text-center text-purple-700 mb-6">Estadísticas de Partidos</h1>
                         <div className="flex justify-between mb-4">
                             <button
                                 onClick={handleExitApp}
@@ -857,7 +870,7 @@ function App() {
                                     </div>
                                 </div>
 
-                                <h2 className="text-2xl font-semibold text-purple-700 mb-4">Resumen de Estadisticas</h2>
+                                <h2 className="text-2xl font-semibold text-purple-700 mb-4">Resumen de Estadísticas</h2>
                                 {statsPlayerFilter && Object.keys(statsSummary).length > 0 ? (
                                     <div className="bg-blue-100 p-3 rounded-lg shadow-sm border border-blue-200 mb-6">
                                         <p className="font-bold text-blue-800">{statsPlayerFilter}</p>
@@ -880,7 +893,7 @@ function App() {
                                                     #{index + 1} - {match.date}: {(match.team1Players || []).join(' y ') || 'N/A'} vs {(match.team2Players || []).join(' y ') || 'N/A'}
                                                 </p>
                                                 <p className="text-lg font-bold text-purple-600 mb-1">
-                                                    Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuacion no registrada'}
+                                                    Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuación no registrada'}
                                                 </p>
                                                 <p className="text-sm text-green-700 font-semibold mb-2">
                                                     Ganador: {match.winner || 'No determinado'}
@@ -922,7 +935,7 @@ function App() {
                     <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md text-center">
                         <h1 className="text-4xl font-bold text-purple-700 mb-4">Defensores de Santos Lugares - Pelota Paleta</h1>
                         <h2 className="text-2xl font-semibold text-blue-700 mb-8">Registro Diario</h2>
-                        
+
                         {welcomeScreenError && (
                             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
                                 <strong className="font-bold">Error:</strong>
@@ -932,7 +945,7 @@ function App() {
 
                         <div className="mb-6">
                             <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="welcome-player-select">
-                                Quien Ingresa?
+                                ¿Quién Ingresa?
                             </label>
                             <select
                                 id="welcome-player-select"
@@ -970,7 +983,7 @@ function App() {
                         {selectedWelcomePlayer && (
                             <div className="mb-6">
                                 <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="welcome-pin-input">
-                                    Ingresa tu PIN (4 digitos):
+                                    Ingresa tu PIN (4 dígitos):
                                 </label>
                                 <input
                                     type="password"
@@ -983,7 +996,7 @@ function App() {
                                 />
                                 {selectedWelcomePlayer === 'Otro' && (
                                     <p className="text-xs text-gray-500 mt-1">
-                                        Si selecciona "Otro" ingresa el codigo 1111
+                                        Si selecciona "Otro" ingresa el código 1111
                                     </p>
                                 )}
                             </div>
@@ -999,7 +1012,7 @@ function App() {
                                 onClick={handleShowStats}
                                 className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
                             >
-                                <BarChart2 className="mr-3" size={24} /> Ver Estadisticas
+                                <BarChart2 className="mr-3" size={24} /> Ver Estadísticas
                             </button>
                         </div>
                     </div>
@@ -1042,7 +1055,7 @@ function App() {
                     <h1 className="text-4xl font-bold text-center text-purple-700 mb-6">Control de Partidos de Pelota Paleta</h1>
                     {userId && (
                         <p className="text-sm text-center text-gray-500 mb-4">
-                            ID de Usuario (Anonimo): <span className="font-mono bg-gray-100 p-1 rounded">{userId}</span>
+                            ID de Usuario (Anónimo): <span className="font-mono bg-gray-100 p-1 rounded">{userId}</span>
                         </p>
                     )}
                     {loadedByPlayer && (
@@ -1083,7 +1096,7 @@ function App() {
                         </div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
-                                <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Equipo 1 (Opcional):</label>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Equipo 1 (Opcional):</label>
                                 <input
                                     type="number"
                                     name="scoreTeam1"
@@ -1093,7 +1106,7 @@ function App() {
                                 />
                             </div>
                             <div>
-                                <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Equipo 2 (Opcional):</label>
+                                <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Equipo 2 (Opcional):</label>
                                 <input
                                     type="number"
                                     name="scoreTeam2"
@@ -1153,7 +1166,7 @@ function App() {
                     {selectedDate && groupedMatches[selectedDate] ? (
                         <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-4xl mb-8 border border-purple-200">
                             <h3 className="text-3xl font-bold text-purple-800 mb-4">Fecha: {selectedDate} ({groupedMatches[selectedDate].matches.length} partidos)</h3>
-                            <h4 className="text-xl font-semibold text-blue-700 mb-3">Partidos del Dia:</h4>
+                            <h4 className="text-xl font-semibold text-blue-700 mb-3">Partidos del Día:</h4>
                             <div className="grid grid-cols-1 gap-3 mb-6">
                                 {groupedMatches[selectedDate].matches.map((match) => (
                                     <div
@@ -1176,7 +1189,7 @@ function App() {
                                                 </div>
                                                 <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                                     <div>
-                                                        <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Eq. 1 (Opcional):</label>
+                                                        <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Eq. 1 (Opcional):</label>
                                                         <input
                                                             type="number"
                                                             name="scoreTeam1"
@@ -1186,7 +1199,7 @@ function App() {
                                                         />
                                                     </div>
                                                     <div>
-                                                        <label className="block text-gray-700 text-sm font-bold mb-2">Puntuacion Eq. 2 (Opcional):</label>
+                                                        <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Eq. 2 (Opcional):</label>
                                                         <input
                                                             type="number"
                                                             name="scoreTeam2"
@@ -1240,7 +1253,7 @@ function App() {
                                                     )}
                                                 </p>
                                                 <p className="text-lg font-bold text-purple-600 mb-1">
-                                                    Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuacion no registrada'}
+                                                    Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuación no registrada'}
                                                 </p>
                                                 <p className="text-sm text-green-700 font-semibold mb-2">
                                                     Ganador: {match.winner || 'No determinado'}
@@ -1305,7 +1318,7 @@ function App() {
                                                     <p className="text-red-700">Perdidos: {stats.lost}</p>
                                                 </div>
                                                 <div className="flex items-center">
-                                                    <label htmlFor={`paid-${selectedDate}-${player}`} className="mr-2 text-gray-700">Pago:</label>
+                                                    <label htmlFor={`paid-${selectedDate}-${player}`} className="mr-2 text-gray-700">Pagó:</label>
                                                     <input
                                                         type="checkbox"
                                                         id={`paid-${selectedDate}-${player}`}
@@ -1340,16 +1353,16 @@ function App() {
                 {showConfirmModal && (
                     <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
                         <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
-                            <h3 className="text-xl font-bold text-gray-800 mb-4">Confirmar Eliminacion</h3>
+                            <h3 className="text-xl font-bold text-gray-800 mb-4">Confirmar Eliminación</h3>
                             <p className="text-gray-600 mb-6">
-                                Estas seguro de que quieres eliminar el partido del {matchToDelete?.date || 'N/A'} entre {(matchToDelete?.team1Players || []).join(' y ') || 'N/A'} vs {(matchToDelete?.team2Players || []).join(' y ') || 'N/A'}?
+                                ¿Estás seguro de que quieres eliminar el partido del {matchToDelete?.date || 'N/A'} entre {(matchToDelete?.team1Players || []).join(' y ') || 'N/A'} vs {(matchToDelete?.team2Players || []).join(' y ') || 'N/A'}?
                             </p>
                             <div className="flex justify-center space-x-4">
                                 <button
                                     onClick={deleteMatch}
                                     className="bg-red-600 hover:bg-red-800 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transform transition-transform duration-200 hover:scale-105"
                                 >
-                                    Si, Eliminar
+                                    Sí, Eliminar
                                 </button>
                                 <button
                                     onClick={() => setShowConfirmModal(false)}
