@@ -1,3 +1,4 @@
+/* Estilos generales del calendario */
 .react-calendar {
   width: 350px;
   max-width: 100%;
@@ -104,6 +105,11 @@
   text-align: center;
   font: inherit;
   font-size: 0.833em;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  position: relative;
 }
 
 .react-calendar__tile:disabled {
@@ -152,4 +158,24 @@
 
 .react-calendar--selectRange .react-calendar__tile--hover {
   background-color: #e6e6e6;
+}
+
+/* Estilos para los días con partidos */
+.react-calendar__tile.has-matches {
+  background-color: #d1fae5; /* Verde suave y agradable */
+  font-weight: bold; /* Negrita */
+  font-size: 1.1em; /* Tamaño de fuente un poco más grande */
+  border-radius: 4px; /* Bordes redondeados para un look suave */
+}
+
+.react-calendar__tile.has-matches:hover {
+  background-color: #a7f3d0; /* Verde un poco más oscuro al pasar el mouse */
+}
+
+/* Estilo para el texto de "X partidos" en tileContent */
+.react-calendar__tile p {
+  margin-top: 2px;
+  font-size: 0.75em; /* Tamaño del texto de "X partidos" */
+  color: #2563eb; /* Color azul para coherencia con el diseño */
+  font-weight: bold;
 }

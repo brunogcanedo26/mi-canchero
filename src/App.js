@@ -14,7 +14,7 @@ import {
     query,
     limit,
     where,
-    enableIndexedDbPersistence // Changed from enablePersistence
+    enableIndexedDbPersistence
 } from 'firebase/firestore';
 import { PlusCircle, Trash2, Edit, Save, XCircle, Download, LogIn, LogOut, BarChart2 } from 'lucide-react';
 import Calendar from 'react-calendar';
@@ -147,7 +147,13 @@ function App() {
         const deletedMatchesCollectionRef = collection(db, `artifacts/${appId}/deletedMatches`);
 
         const matchesQuery = query(matchesCollectionRef, limit(100));
-        const deletedMatchesQuery = query(deletedMatchesCollectionRef, limit(100));
+        const deletedMatchesQuery = selectedDate
+            ? query(
+                  deletedMatchesCollectionRef,
+                  where("originalMatch.date", "==", selectedDate),
+                  limit(100)
+              )
+            : query(deletedMatchesCollectionRef, limit(100));
         const dailySummariesQuery = selectedDate
             ? query(
                   collection(db, `artifacts/${appId}/dailySummaries`),
@@ -260,6 +266,17 @@ function App() {
                 }
             }
         });
+
+        // Ordenar los partidos en cada fecha: primero los no eliminados, luego los eliminados
+        Object.keys(grouped).forEach(date => {
+            grouped[date].matches.sort((a, b) => {
+                if (a.isDeleted === b.isDeleted) {
+                    return new Date(b.timestamp.toDate()) - new Date(a.timestamp.toDate()); // Ordenar por timestamp descendente dentro de cada grupo
+                }
+                return a.isDeleted ? 1 : -1; // No eliminados primero, eliminados al final
+            });
+        });
+
         return grouped;
     }, [matches, deletedMatches, fetchedDailySummaries]);
 
@@ -1159,6 +1176,12 @@ function App() {
                             onChange={handleCalendarChange}
                             value={calendarDate}
                             tileContent={tileContent}
+                            tileClassName={({ date, view }) => {
+                                if (view !== 'month') return null;
+                                const dateStr = date.toISOString().split('T')[0];
+                                const matchCount = groupedMatches[dateStr]?.matches.length || 0;
+                                return matchCount > 0 ? 'has-matches' : null;
+                            }}
                             className="w-full border border-gray-200 rounded-lg shadow-sm bg-white p-4"
                         />
                     </div>
