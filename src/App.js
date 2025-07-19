@@ -21,10 +21,6 @@ import Calendar from 'react-calendar';
 import './styles/Calendar.css';
 import './styles/Watermark.css';
 
-// Imágenes (asegúrate de que estén en public/images/)
-import logo1 from 'C:/Users/Bruno/Desktop/mi-app-pelota-paleta/src/images/logo1.png';
-import logo2 from 'C:/Users/Bruno/Desktop/mi-app-pelota-paleta/src/images/logo2.png';
-
 // Firebase configuration and initialization
 const firebaseConfig = process.env.REACT_APP_FIREBASE_CONFIG ? JSON.parse(process.env.REACT_APP_FIREBASE_CONFIG) : {};
 const app = initializeApp(firebaseConfig);
@@ -895,8 +891,8 @@ function App() {
 
     const renderLogos = () => (
         <div className="flex justify-center items-center mb-6 space-x-4">
-            <img src={logo1} alt="Logo 1" className="h-48 object-contain" />
-            <img src={logo2} alt="Logo 2" className="h-48 object-contain" />
+            <img src="/images/logo1.png" alt="Logo 1" className="h-48 object-contain" />
+            <img src="/images/logo2.png" alt="Logo 2" className="h-48 object-contain" />
         </div>
     );
 
