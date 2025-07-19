@@ -19,6 +19,11 @@ import {
 import { PlusCircle, Trash2, Edit, Save, XCircle, Download, LogIn, LogOut, BarChart2 } from 'lucide-react';
 import Calendar from 'react-calendar';
 import './styles/Calendar.css';
+import './styles/Watermark.css';
+
+// Imágenes (asegúrate de que estén en public/images/)
+import logo1 from 'C:/Users/Bruno/Desktop/mi-app-pelota-paleta/src/images/logo1.png';
+import logo2 from 'C:/Users/Bruno/Desktop/mi-app-pelota-paleta/src/images/logo2.png';
 
 // Firebase configuration and initialization
 const firebaseConfig = process.env.REACT_APP_FIREBASE_CONFIG ? JSON.parse(process.env.REACT_APP_FIREBASE_CONFIG) : {};
@@ -60,6 +65,13 @@ const playerPins = {
 
 // Helper function to check if a player name is in the predefined list
 const isPredefinedPlayer = (playerName) => playerName && playerList.includes(playerName);
+
+// Componente de Copyright
+const CopyrightFooter = () => (
+  <footer className="mt-6 text-center text-gray-300 text-sm">
+    © 2025 Bruno Canedo. Prohibida la reproducción o uso del código sin permiso.
+  </footer>
+);
 
 // ErrorBoundary component to catch rendering errors
 class ErrorBoundary extends React.Component {
@@ -110,12 +122,20 @@ function App() {
     const [statsPlayerFilter, setStatsPlayerFilter] = useState('');
     const [statsDateFrom, setStatsDateFrom] = useState('');
     const [statsDateTo, setStatsDateTo] = useState('');
+    const [statsYearFilter, setStatsYearFilter] = useState('');
+    const [statsMonthFilter, setStatsMonthFilter] = useState('');
     const [showWelcomeScreen, setShowWelcomeScreen] = useState(true);
     const [selectedWelcomePlayer, setSelectedWelcomePlayer] = useState('');
     const [customWelcomePlayerName, setCustomWelcomePlayerName] = useState('');
     const [welcomePin, setWelcomePin] = useState('');
     const [welcomeScreenError, setWelcomeScreenError] = useState('');
     const [loadedByPlayer, setLoadedByPlayer] = useState('');
+    const [showFullRanking, setShowFullRanking] = useState({
+        played: false,
+        won: false,
+        lost: false,
+        winPercentage: false,
+    });
 
     useEffect(() => {
         const setupFirebase = async () => {
@@ -267,13 +287,12 @@ function App() {
             }
         });
 
-        // Ordenar los partidos en cada fecha: primero los no eliminados, luego los eliminados
         Object.keys(grouped).forEach(date => {
             grouped[date].matches.sort((a, b) => {
                 if (a.isDeleted === b.isDeleted) {
-                    return new Date(b.timestamp.toDate()) - new Date(a.timestamp.toDate()); // Ordenar por timestamp descendente dentro de cada grupo
+                    return new Date(b.timestamp.toDate()) - new Date(a.timestamp.toDate());
                 }
-                return a.isDeleted ? 1 : -1; // No eliminados primero, eliminados al final
+                return a.isDeleted ? 1 : -1;
             });
         });
 
@@ -290,7 +309,7 @@ function App() {
                 ...currentMatchState,
                 [playerKey]: { value: '', type: 'custom' }
             });
-        } else {
+       } else {
             setMatchState({
                 ...currentMatchState,
                 [playerKey]: { value: value, type: 'dropdown' }
@@ -755,6 +774,8 @@ function App() {
         setEditedMatch(null);
         setSelectedDate(null);
         setShowStats(false);
+        setStatsYearFilter('');
+        setStatsMonthFilter('');
     };
 
     const handleShowStats = () => {
@@ -778,34 +799,85 @@ function App() {
             matchesDate = match.date <= statsDateTo;
         }
 
-        return matchesPlayer && matchesDate;
+        let matchesYear = true;
+        if (statsYearFilter) {
+            matchesYear = match.date.startsWith(statsYearFilter);
+        }
+
+        let matchesMonth = true;
+        if (statsMonthFilter) {
+            const month = parseInt(statsMonthFilter).toString().padStart(2, '0');
+            matchesMonth = match.date.includes(`-${month}-`);
+        }
+
+        return matchesPlayer && matchesDate && matchesYear && matchesMonth;
     });
 
-    const statsSummary = {};
-    if (statsPlayerFilter) {
-        statsSummary[statsPlayerFilter] = { played: 0, won: 0, lost: 0 };
+    const statsSummary = useMemo(() => {
+        const summary = {};
         filteredMatches.forEach(match => {
             if (!match || !match.team1Players || !match.team2Players) return;
-            if (match.team1Players.includes(statsPlayerFilter) || match.team2Players.includes(statsPlayerFilter)) {
-                statsSummary[statsPlayerFilter].played++;
+            const allPlayers = [...match.team1Players, ...match.team2Players];
+            allPlayers.forEach(player => {
+                if (!player) return;
+                if (!summary[player]) {
+                    summary[player] = { played: 0, won: 0, lost: 0 };
+                }
+                summary[player].played++;
                 if (match.winner && match.winner !== 'Empate' && match.winner !== 'N/A') {
                     if (match.winner.startsWith('Equipo 1')) {
-                        if (match.team1Players.includes(statsPlayerFilter)) {
-                            statsSummary[statsPlayerFilter].won++;
-                        } else if (match.team2Players.includes(statsPlayerFilter)) {
-                            statsSummary[statsPlayerFilter].lost++;
+                        if (match.team1Players.includes(player)) {
+                            summary[player].won++;
+                        } else if (match.team2Players.includes(player)) {
+                            summary[player].lost++;
                         }
                     } else if (match.winner.startsWith('Equipo 2')) {
-                        if (match.team2Players.includes(statsPlayerFilter)) {
-                            statsSummary[statsPlayerFilter].won++;
-                        } else if (match.team1Players.includes(statsPlayerFilter)) {
-                            statsSummary[statsPlayerFilter].lost++;
+                        if (match.team2Players.includes(player)) {
+                            summary[player].won++;
+                        } else if (match.team1Players.includes(player)) {
+                            summary[player].lost++;
                         }
                     }
                 }
+            });
+        });
+        // Calcular porcentaje de victorias
+        Object.keys(summary).forEach(player => {
+            const { played, won } = summary[player];
+            summary[player].winPercentage = played > 0 ? ((won / played) * 100).toFixed(2) : '0.00';
+        });
+        return summary;
+    }, [filteredMatches]);
+
+    const rankings = useMemo(() => {
+        const playedRanking = Object.entries(statsSummary)
+            .map(([player, stats]) => ({ player, ...stats }))
+            .sort((a, b) => b.played - a.played || a.player.localeCompare(b.player));
+
+        const wonRanking = Object.entries(statsSummary)
+            .map(([player, stats]) => ({ player, ...stats }))
+            .sort((a, b) => b.won - a.won || a.player.localeCompare(b.player));
+
+        const lostRanking = Object.entries(statsSummary)
+            .map(([player, stats]) => ({ player, ...stats }))
+            .sort((a, b) => b.lost - a.lost || a.player.localeCompare(b.player));
+
+        const winPercentageRanking = Object.entries(statsSummary)
+            .map(([player, stats]) => ({ player, ...stats }))
+            .sort((a, b) => parseFloat(b.winPercentage) - parseFloat(a.winPercentage) || a.player.localeCompare(b.player));
+
+        return { playedRanking, wonRanking, lostRanking, winPercentageRanking };
+    }, [statsSummary]);
+
+    const availableYears = useMemo(() => {
+        const years = new Set();
+        matches.forEach(match => {
+            if (match.date) {
+                years.add(match.date.split('-')[0]);
             }
         });
-    }
+        return Array.from(years).sort((a, b) => b - a);
+    }, [matches]);
 
     const tileContent = ({ date, view }) => {
         if (view !== 'month') return null;
@@ -821,9 +893,16 @@ function App() {
         setSelectedDate(date.toISOString().split('T')[0]);
     };
 
+    const renderLogos = () => (
+        <div className="flex justify-center items-center mb-6 space-x-4">
+            <img src={logo1} alt="Logo 1" className="h-48 object-contain" />
+            <img src={logo2} alt="Logo 2" className="h-48 object-contain" />
+        </div>
+    );
+
     if (loading) {
         return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-400 to-purple-600 text-white font-inter">
+            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-blue-600 text-white font-inter relative watermark-dsl">
                 <p>Cargando aplicación...</p>
             </div>
         );
@@ -832,9 +911,10 @@ function App() {
     if (showStats) {
         return (
             <ErrorBoundary>
-                <div className="min-h-screen bg-gradient-to-br from-blue-400 to-purple-600 p-4 font-inter text-gray-800 flex flex-col items-center">
+                <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-600 p-4 font-inter text-gray-800 flex flex-col items-center relative watermark-dsl">
+                    {renderLogos()}
                     <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-4xl mb-8">
-                        <h1 className="text-4xl font-bold text-center text-purple-700 mb-6">Estadísticas de Partidos</h1>
+                        <h1 className="text-4xl font-bold text-center text-blue-700 mb-6">Estadísticas de Partidos</h1>
                         <div className="flex justify-between mb-4">
                             <button
                                 onClick={handleExitApp}
@@ -850,7 +930,7 @@ function App() {
                             <>
                                 <div className="mb-8 p-4 border border-blue-200 rounded-lg bg-blue-50">
                                     <h2 className="text-2xl font-semibold text-blue-700 mb-4">Filtros</h2>
-                                    <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                                    <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                         <div>
                                             <label className="block text-gray-700 text-sm font-bold mb-2">Jugador:</label>
                                             <select
@@ -864,6 +944,43 @@ function App() {
                                                         {player}
                                                     </option>
                                                 ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-700 text-sm font-bold mb-2">Año:</label>
+                                            <select
+                                                value={statsYearFilter}
+                                                onChange={(e) => setStatsYearFilter(e.target.value)}
+                                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                            >
+                                                <option value="">Todos los años</option>
+                                                {availableYears.map((year, index) => (
+                                                    <option key={index} value={year}>
+                                                        {year}
+                                                    </option>
+                                                ))}
+                                            </select>
+                                        </div>
+                                        <div>
+                                            <label className="block text-gray-700 text-sm font-bold mb-2">Mes:</label>
+                                            <select
+                                                value={statsMonthFilter}
+                                                onChange={(e) => setStatsMonthFilter(e.target.value)}
+                                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                                            >
+                                                <option value="">Todos los meses</option>
+                                                <option value="1">Enero</option>
+                                                <option value="2">Febrero</option>
+                                                <option value="3">Marzo</option>
+                                                <option value="4">Abril</option>
+                                                <option value="5">Mayo</option>
+                                                <option value="6">Junio</option>
+                                                <option value="7">Julio</option>
+                                                <option value="8">Agosto</option>
+                                                <option value="9">Septiembre</option>
+                                                <option value="10">Octubre</option>
+                                                <option value="11">Noviembre</option>
+                                                <option value="12">Diciembre</option>
                                             </select>
                                         </div>
                                         <div>
@@ -887,19 +1004,50 @@ function App() {
                                     </div>
                                 </div>
 
-                                <h2 className="text-2xl font-semibold text-purple-700 mb-4">Resumen de Estadísticas</h2>
-                                {statsPlayerFilter && Object.keys(statsSummary).length > 0 ? (
+                                <h2 className="text-2xl font-semibold text-blue-700 mb-4">Resumen de Estadísticas</h2>
+                                {statsPlayerFilter && statsSummary[statsPlayerFilter] ? (
                                     <div className="bg-blue-100 p-3 rounded-lg shadow-sm border border-blue-200 mb-6">
                                         <p className="font-bold text-blue-800">{statsPlayerFilter}</p>
                                         <p className="text-gray-700">Jugados: {statsSummary[statsPlayerFilter].played}</p>
                                         <p className="text-green-700">Ganados: {statsSummary[statsPlayerFilter].won}</p>
                                         <p className="text-red-700">Perdidos: {statsSummary[statsPlayerFilter].lost}</p>
+                                        <p className="text-blue-700">Porcentaje de Victorias: {statsSummary[statsPlayerFilter].winPercentage}%</p>
                                     </div>
                                 ) : (
                                     <p className="text-gray-500">Selecciona un jugador para ver su resumen.</p>
                                 )}
 
-                                <h2 className="text-2xl font-semibold text-purple-700 mb-4">Lista de Partidos</h2>
+                                <h2 className="text-2xl font-semibold text-blue-700 mb-4">Rankings</h2>
+                                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
+                                    {[
+                                        { title: 'Top 10 Partidos Jugados', key: 'played', data: rankings.playedRanking },
+                                        { title: 'Top 10 Partidos Ganados', key: 'won', data: rankings.wonRanking },
+                                        { title: 'Top 10 Partidos Perdidos', key: 'lost', data: rankings.lostRanking },
+                                        { title: 'Top 10 Porcentaje de Victorias', key: 'winPercentage', data: rankings.winPercentageRanking, suffix: '%' },
+                                    ].map(({ title, key, data, suffix }) => (
+                                        <div key={key} className="bg-blue-50 p-4 rounded-lg shadow-sm border border-blue-200">
+                                            <h3 className="text-lg font-semibold text-blue-700 mb-2">{title}</h3>
+                                            <div className="max-h-96 overflow-y-auto">
+                                                {(showFullRanking[key] ? data : data.slice(0, 10)).map((entry, index) => (
+                                                    <div key={index} className="flex justify-between text-sm text-gray-700 mb-1">
+                                                        <span>{index + 1}. {entry.player}</span>
+                                                        <span>{entry[key]}{suffix || ''}</span>
+                                                    </div>
+                                                ))}
+                                            </div>
+                                            {data.length > 10 && (
+                                                <button
+                                                    onClick={() => setShowFullRanking(prev => ({ ...prev, [key]: !prev[key] }))}
+                                                    className="mt-2 bg-blue-500 hover:bg-blue-700 text-white font-bold py-1 px-3 rounded-full text-sm focus:outline-none focus:shadow-outline"
+                                                >
+                                                    {showFullRanking[key] ? 'Ver Menos' : 'Ver Todo'}
+                                                </button>
+                                            )}
+                                        </div>
+                                    ))}
+                                </div>
+
+                                <h2 className="text-2xl font-semibold text-blue-700 mb-4">Lista de Partidos</h2>
                                 {filteredMatches.length === 0 ? (
                                     <p className="text-gray-500">No hay partidos para los filtros seleccionados.</p>
                                 ) : (
@@ -909,7 +1057,7 @@ function App() {
                                                 <p className="text-md font-semibold text-blue-800 mb-1">
                                                     #{index + 1} - {match.date}: {(match.team1Players || []).join(' y ') || 'N/A'} vs {(match.team2Players || []).join(' y ') || 'N/A'}
                                                 </p>
-                                                <p className="text-lg font-bold text-purple-600 mb-1">
+                                                <p className="text-lg font-bold text-blue-600 mb-1">
                                                     Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuación no registrada'}
                                                 </p>
                                                 <p className="text-sm text-green-700 font-semibold mb-2">
@@ -940,103 +1088,107 @@ function App() {
                             </>
                         )}
                     </div>
+<CopyrightFooter />
                 </div>
             </ErrorBoundary>
         );
     }
 
     if (showWelcomeScreen) {
-        return (
-            <ErrorBoundary>
-                <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-400 to-purple-600 p-4 font-inter text-gray-800">
-                    <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md text-center">
-                        <h1 className="text-4xl font-bold text-purple-700 mb-4">Defensores de Santos Lugares - Pelota Paleta</h1>
-                        <h2 className="text-2xl font-semibold text-blue-700 mb-8">Registro Diario</h2>
+  return (
+    <ErrorBoundary>
+      <div className="min-h-screen flex flex-col justify-between bg-gradient-to-br from-blue-900 to-blue-600 p-4 font-inter text-gray-800 relative watermark-dsl">
+        <div className="flex-grow flex items-center justify-center">
+          <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md text-center">
+            {renderLogos()}
+            <h2 className="text-2xl font-semibold text-blue-700 mb-8">Registro Diario</h2>
 
-                        {welcomeScreenError && (
-                            <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                                <strong className="font-bold">Error:</strong>
-                                <span className="block sm:inline"> {welcomeScreenError}</span>
-                            </div>
-                        )}
+            {welcomeScreenError && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                <strong className="font-bold">Error:</strong>
+                <span className="block sm:inline"> {welcomeScreenError}</span>
+              </div>
+            )}
 
-                        <div className="mb-6">
-                            <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="welcome-player-select">
-                                ¿Quién Ingresa?
-                            </label>
-                            <select
-                                id="welcome-player-select"
-                                value={selectedWelcomePlayer}
-                                onChange={(e) => {
-                                    setSelectedWelcomePlayer(e.target.value);
-                                    setWelcomePin('');
-                                    setCustomWelcomePlayerName('');
-                                }}
-                                className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg"
-                            >
-                                <option value="">Seleccionar Jugador</option>
-                                {welcomePlayerList.map((player, index) => (
-                                    <option key={index} value={player}>
-                                        {player}
-                                    </option>
-                                ))}
-                            </select>
-                        </div>
-                        {selectedWelcomePlayer === 'Otro' && (
-                            <div className="mb-6">
-                                <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="custom-player-name-input">
-                                    Nombre del Jugador:
-                                </label>
-                                <input
-                                    type="text"
-                                    id="custom-player-name-input"
-                                    value={customWelcomePlayerName}
-                                    onChange={(e) => setCustomWelcomePlayerName(e.target.value)}
-                                    className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg text-center"
-                                    placeholder="Escribe el nombre"
-                                />
-                            </div>
-                        )}
-                        {selectedWelcomePlayer && (
-                            <div className="mb-6">
-                                <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="welcome-pin-input">
-                                    Ingresa tu PIN (4 dígitos):
-                                </label>
-                                <input
-                                    type="password"
-                                    id="welcome-pin-input"
-                                    value={welcomePin}
-                                    onChange={(e) => setWelcomePin(e.target.value)}
-                                    maxLength="4"
-                                    className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg text-center tracking-widest"
-                                    placeholder="****"
-                                />
-                                {selectedWelcomePlayer === 'Otro' && (
-                                    <p className="text-xs text-gray-500 mt-1">
-                                        Si selecciona "Otro" ingresa el código 1111
-                                    </p>
-                                )}
-                            </div>
-                        )}
-                        <div className="flex flex-col space-y-4">
-                            <button
-                                onClick={handleWelcomeEnter}
-                                className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
-                            >
-                                <LogIn className="mr-3" size={24} /> Ingresar
-                            </button>
-                            <button
-                                onClick={handleShowStats}
-                                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
-                            >
-                                <BarChart2 className="mr-3" size={24} /> Ver Estadísticas
-                            </button>
-                        </div>
-                    </div>
-                </div>
-            </ErrorBoundary>
-        );
-    }
+            <div className="mb-6">
+              <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="welcome-player-select">
+                ¿Quién Ingresa?
+              </label>
+              <select
+                id="welcome-player-select"
+                value={selectedWelcomePlayer}
+                onChange={(e) => {
+                  setSelectedWelcomePlayer(e.target.value);
+                  setWelcomePin('');
+                  setCustomWelcomePlayerName('');
+                }}
+                className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg"
+              >
+                <option value="">Seleccionar Jugador</option>
+                {welcomePlayerList.map((player, index) => (
+                  <option key={index} value={player}>
+                    {player}
+                  </option>
+                ))}
+              </select>
+            </div>
+            {selectedWelcomePlayer === 'Otro' && (
+              <div className="mb-6">
+                <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="custom-player-name-input">
+                  Nombre del Jugador:
+                </label>
+                <input
+                  type="text"
+                  id="custom-player-name-input"
+                  value={customWelcomePlayerName}
+                  onChange={(e) => setCustomWelcomePlayerName(e.target.value)}
+                  className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg text-center"
+                  placeholder="Escribe el nombre"
+                />
+              </div>
+            )}
+            {selectedWelcomePlayer && (
+              <div className="mb-6">
+                <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="welcome-pin-input">
+                  Ingresa tu PIN (4 dígitos):
+                </label>
+                <input
+                  type="password"
+                  id="welcome-pin-input"
+                  value={welcomePin}
+                  onChange={(e) => setWelcomePin(e.target.value)}
+                  maxLength="4"
+                  className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg text-center tracking-widest"
+                  placeholder="****"
+                />
+                {selectedWelcomePlayer === 'Otro' && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    Si selecciona "Otro" ingresa el código 1111
+                  </p>
+                )}
+              </div>
+            )}
+            <div className="flex flex-col space-y-4">
+              <button
+                onClick={handleWelcomeEnter}
+                className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
+              >
+                <LogIn className="mr-3" size={24} /> Ingresar
+              </button>
+              <button
+                onClick={handleShowStats}
+                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
+              >
+                <BarChart2 className="mr-3" size={24} /> Ver Estadísticas
+              </button>
+            </div>
+          </div>
+        </div>
+        <CopyrightFooter />
+      </div>
+    </ErrorBoundary>
+  );
+}
 
     const renderPlayerInput = (playerState, setPlayerState, playerKey, isEdit = false) => (
         <>
@@ -1067,9 +1219,10 @@ function App() {
 
     return (
         <ErrorBoundary>
-            <div className="min-h-screen bg-gradient-to-br from-blue-400 to-purple-600 p-4 font-inter text-gray-800 flex flex-col items-center">
+            <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-600 p-4 font-inter text-gray-800 flex flex-col items-center relative watermark-dsl">
+                {renderLogos()}
                 <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-4xl mb-8">
-                    <h1 className="text-4xl font-bold text-center text-purple-700 mb-6">Control de Partidos de Pelota Paleta</h1>
+                    <h1 className="text-4xl font-bold text-center text-blue-700 mb-6">Control de Partidos de Pelota Paleta</h1>
                     {userId && (
                         <p className="text-sm text-center text-gray-500 mb-4">
                             ID de Usuario (Anónimo): <span className="font-mono bg-gray-100 p-1 rounded">{userId}</span>
@@ -1162,7 +1315,7 @@ function App() {
                     </div>
 
                     <div className="flex justify-between items-center mb-4">
-                        <h2 className="text-2xl font-semibold text-purple-700">Resumen de Partidos por Fecha</h2>
+                        <h2 className="text-2xl font-semibold text-blue-700">Resumen de Partidos por Fecha</h2>
                         <button
                             onClick={downloadMatchHistory}
                             className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
@@ -1187,8 +1340,8 @@ function App() {
                     </div>
 
                     {selectedDate && groupedMatches[selectedDate] ? (
-                        <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-4xl mb-8 border border-purple-200">
-                            <h3 className="text-3xl font-bold text-purple-800 mb-4">Fecha: {selectedDate} ({groupedMatches[selectedDate].matches.length} partidos)</h3>
+                        <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-4xl mb-8 border border-blue-200">
+                            <h3 className="text-3xl font-bold text-blue-800 mb-4">Fecha: {selectedDate} ({groupedMatches[selectedDate].matches.length} partidos)</h3>
                             <h4 className="text-xl font-semibold text-blue-700 mb-3">Partidos del Día:</h4>
                             <div className="grid grid-cols-1 gap-3 mb-6">
                                 {groupedMatches[selectedDate].matches.map((match) => (
@@ -1275,7 +1428,7 @@ function App() {
                                                         <span className="ml-2 font-bold text-red-700">Dado de Baja</span>
                                                     )}
                                                 </p>
-                                                <p className="text-lg font-bold text-purple-600 mb-1">
+                                                <p className="text-lg font-bold text-blue-600 mb-1">
                                                     Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuación no registrada'}
                                                 </p>
                                                 <p className="text-sm text-green-700 font-semibold mb-2">
@@ -1378,14 +1531,15 @@ function App() {
                         <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
                             <h3 className="text-xl font-bold text-gray-800 mb-4">Confirmar Eliminación</h3>
                             <p className="text-gray-600 mb-6">
-                                ¿Estás seguro de que quieres eliminar el partido del {matchToDelete?.date || 'N/A'} entre {(matchToDelete?.team1Players || []).join(' y ') || 'N/A'} vs {(matchToDelete?.team2Players || []).join(' y ') || 'N/A'}?
+                                ¿Estás seguro de que quieres eliminar el partido
+                                {(matchToDelete.team1Players || []).join(' y ') || 'N/A'} vs {(matchToDelete.team2Players || []).join(' y ') || 'N/A'}?
                             </p>
                             <div className="flex justify-center space-x-4">
                                 <button
                                     onClick={deleteMatch}
-                                    className="bg-red-600 hover:bg-red-800 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transform transition-transform duration-200 hover:scale-105"
+                                    className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transform transition-transform duration-200 hover:scale-105"
                                 >
-                                    Sí, Eliminar
+                                    Eliminar
                                 </button>
                                 <button
                                     onClick={() => setShowConfirmModal(false)}
@@ -1397,6 +1551,7 @@ function App() {
                         </div>
                     </div>
                 )}
+<CopyrightFooter />
             </div>
         </ErrorBoundary>
     );
