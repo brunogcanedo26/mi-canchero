@@ -602,7 +602,7 @@ function App() {
  ].map(entry => `${entry.changedBy} (${new Date(entry.timestamp.toDate()).toLocaleString()}): ${entry.action}`).join('; ');
  return [
  index + 1, match.date, match.team1Players[0] || 'N/A', team1Player1Paid, match.team1Players[1] || 'N/A', team1Player2Paid,
- match.team2Players[0] || 'N/A', team2Player1 Paid, match.team2Players[1] || 'N/A', team2Player2Paid, score1, score2, team1Won, team2Won,
+ match.team2Players[0] || 'N/A', team2Player1Paid, match.team2Players[1] || 'N/A', team2Player2Paid, score1, score2, team1Won, team2Won,
  comment, loadedBy, status, deletedBy, deletedTimestamp, pendingConfirmation, editHistoryString, paymentHistoryString
  ].map(item => `"${String(item).replace(/"/g, '""')}"`).join(',');
  });
