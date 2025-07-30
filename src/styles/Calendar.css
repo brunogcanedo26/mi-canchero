@@ -172,23 +172,16 @@
   background-color: #a7f3d0; /* Verde un poco más oscuro al pasar el mouse */
 }
 
-/* Estilo para los días con partidos a confirmar */
-.react-calendar__tile.pending-confirmation {
-  background-color: #D14BA0 !important; /* Rosa para partidos a confirmar */
-  color: white !important;
-  font-weight: bold;
-  font-size: 1.1em;
-  border-radius: 4px;
-}
-
-.react-calendar__tile.pending-confirmation:hover {
-  background-color: #c1358a !important; /* Rosa más oscuro al pasar el mouse */
-}
-
 /* Estilo para el texto de "X partidos" en tileContent */
 .react-calendar__tile p {
   margin-top: 2px;
   font-size: 0.75em; /* Tamaño del texto de "X partidos" */
   color: #2563eb; /* Color azul para coherencia con el diseño */
   font-weight: bold;
+}
+
+.react-calendar__tile.has-pending-matches {
+    background-color: #D14BA0 !important;
+    color: white !important;
+    border-radius: 50% !important;
 }
