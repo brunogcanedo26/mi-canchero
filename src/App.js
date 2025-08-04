@@ -92,10 +92,10 @@ function App() {
     const [deletedMatches, setDeletedMatches] = useState([]);
     const [fetchedDailySummaries, setFetchedDailySummaries] = useState({});
     const [newMatch, setNewMatch] = useState({
-        team1Player1: { value: '', type: 'dropdown' },
-        team1Player2: { value: '', type: 'dropdown' },
-        team2Player1: { value: '', type: 'dropdown' },
-        team2Player2: { value: '', type: 'dropdown' },
+        team1Player1: { value: '', isCustom: false },
+        team1Player2: { value: '', isCustom: false },
+        team2Player1: { value: '', isCustom: false },
+        team2Player2: { value: '', isCustom: false },
         scoreTeam1: '',
         scoreTeam2: '',
         comment: '',
@@ -132,10 +132,10 @@ function App() {
     const [visibleMatchesCount, setVisibleMatchesCount] = useState(10); // Estado para controlar cuántos partidos se muestran
     const [showNoCancheroScreen, setShowNoCancheroScreen] = useState(false);
     const [noCancheroMatch, setNoCancheroMatch] = useState({
-        team1Player1: { value: '', type: 'dropdown' },
-        team1Player2: { value: '', type: 'dropdown' },
-        team2Player1: { value: '', type: 'dropdown' },
-        team2Player2: { value: '', type: 'dropdown' },
+        team1Player1: { value: '', isCustom: false },
+        team1Player2: { value: '', isCustom: false },
+        team2Player1: { value: '', isCustom: false },
+        team2Player2: { value: '', isCustom: false },
         scoreTeam1: '',
         scoreTeam2: '',
         loadedBy: '',
@@ -448,10 +448,10 @@ const groupedMatches = useMemo(() => {
     pendingConfirmation: false
 });
             setNewMatch({
-                team1Player1: { value: '', type: 'dropdown' },
-                team1Player2: { value: '', type: 'dropdown' },
-                team2Player1: { value: '', type: 'dropdown' },
-                team2Player2: { value: '', type: 'dropdown' },
+                team1Player1: { value: '', isCustom: false },
+                team1Player2: { value: '', isCustom: false },
+                team2Player1: { value: '', isCustom: false },
+                team2Player2: { value: '', isCustom: false },
                 scoreTeam1: '',
                 scoreTeam2: '',
                 comment: '',
@@ -492,22 +492,22 @@ const groupedMatches = useMemo(() => {
     };
 
     const startEditing = (match) => {
-        if (!userId) {
-            setErrorMessage("La aplicación no está lista. Por favor, espera o recarga.");
-            return;
-        }
+    if (!userId) {
+        setErrorMessage("La aplicación no está lista. Por favor, espera o recarga.");
+        return;
+    }
 
-        const transformedEditedMatch = {
-            ...match,
-            team1Player1: { value: match.team1Players[0] || '', type: isPredefinedPlayer(match.team1Players[0]) ? 'dropdown' : 'custom' },
-            team1Player2: { value: match.team1Players[1] || '', type: isPredefinedPlayer(match.team1Players[1]) ? 'dropdown' : 'custom' },
-            team2Player1: { value: match.team2Players[0] || '', type: isPredefinedPlayer(match.team2Players[0]) ? 'dropdown' : 'custom' },
-            team2Player2: { value: match.team2Players[1] || '', type: isPredefinedPlayer(match.team2Players[1]) ? 'dropdown' : 'custom' },
-            comment: match.comment || '',
-        };
-        setEditingMatchId(match.id);
-        setEditedMatch(transformedEditedMatch);
+    const transformedEditedMatch = {
+        ...match,
+        team1Player1: { value: match.team1Players[0] || '', isCustom: !isPredefinedPlayer(match.team1Players[0]) },
+        team1Player2: { value: match.team1Players[1] || '', isCustom: !isPredefinedPlayer(match.team1Players[1]) },
+        team2Player1: { value: match.team2Players[0] || '', isCustom: !isPredefinedPlayer(match.team2Players[0]) },
+        team2Player2: { value: match.team2Players[1] || '', isCustom: !isPredefinedPlayer(match.team2Players[1]) },
+        comment: match.comment || '',
     };
+    setEditingMatchId(match.id);
+    setEditedMatch(transformedEditedMatch);
+};
 
     const cancelEditing = () => {
         setEditingMatchId(null);
@@ -758,29 +758,7 @@ const groupedMatches = useMemo(() => {
     };
 
     const handleExitApp = () => {
-        setShowWelcomeScreen(true);
-        setSelectedWelcomePlayer('');
-        setWelcomePin('');
-        setLoadedByPlayer('');
-        setErrorMessage('');
-        setWelcomeScreenError('');
-        setCustomWelcomePlayerName('');
-        setNewMatch({
-            team1Player1: { value: '', type: 'dropdown' },
-            team1Player2: { value: '', type: 'dropdown' },
-            team2Player1: { value: '', type: 'dropdown' },
-            team2Player2: { value: '', type: 'dropdown' },
-            scoreTeam1: '',
-            scoreTeam2: '',
-            comment: '',
-            date: new Date().toLocaleDateString('en-CA'),
-        });
-        setEditingMatchId(null);
-        setEditedMatch(null);
-        setSelectedDate(null);
-        setShowStats(false);
-        setStatsYearFilter('');
-        setStatsMonthFilter('');
+        window.location.reload();
     };
 
     const handleShowStats = () => {
@@ -917,37 +895,26 @@ const groupedMatches = useMemo(() => {
 
 const renderPlayerInput = (player, setPlayerState, fieldName, isEditing = false) => {
     return (
-        <div className="flex items-center mb-2">
+        <div className="mb-2">
             <select
-                value={player.type}
+                value={player.value}
                 onChange={(e) => {
+                    const value = e.target.value;
+                    const isCustom = value === 'Otro';
                     setPlayerState(prev => ({
                         ...prev,
-                        [fieldName]: { ...prev[fieldName], type: e.target.value, value: '' }
+                        [fieldName]: { value: isCustom ? '' : value, isCustom }
                     }));
                 }}
-                className="shadow appearance-none border rounded w-1/4 py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mr-2"
+                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
             >
-                <option value="dropdown">Jugador</option>
-                <option value="text">Otro</option>
+                <option value="">Selecciona un jugador</option>
+                {playerList.map((p, index) => (
+                    <option key={index} value={p}>{p}</option>
+                ))}
+                <option value="Otro">Otro</option>
             </select>
-            {player.type === 'dropdown' ? (
-                <select
-                    value={player.value}
-                    onChange={(e) => {
-                        setPlayerState(prev => ({
-                            ...prev,
-                            [fieldName]: { ...prev[fieldName], value: e.target.value }
-                        }));
-                    }}
-                    className="shadow appearance-none border rounded w-3/4 py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                >
-                    <option value="">Selecciona un jugador</option>
-                    {playerList.map((p, index) => (
-                        <option key={index} value={p}>{p}</option>
-                    ))}
-                </select>
-            ) : (
+            {player.isCustom && (
                 <input
                     type="text"
                     value={player.value}
@@ -957,7 +924,7 @@ const renderPlayerInput = (player, setPlayerState, fieldName, isEditing = false)
                             [fieldName]: { ...prev[fieldName], value: e.target.value }
                         }));
                     }}
-                    className="shadow appearance-none border rounded w-3/4 py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mt-2"
                     placeholder="Escribe el nombre del jugador"
                 />
             )}
@@ -987,18 +954,7 @@ if (showNoCancheroScreen) {
                     <div className="flex justify-end mb-4">
                         <button
     onClick={() => {
-        setShowNoCancheroScreen(false);
-        setNoCancheroMatch({
-            team1Player1: { value: '', type: 'dropdown' },
-            team1Player2: { value: '', type: 'dropdown' },
-            team2Player1: { value: '', type: 'dropdown' },
-            team2Player2: { value: '', type: 'dropdown' },
-            scoreTeam1: '',
-            scoreTeam2: '',
-            loadedBy: '',
-            date: new Date().toLocaleDateString('en-CA'),
-        });
-        setConfirmationMessage('');
+        window.location.reload();
     }}
     className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
 >
@@ -1128,10 +1084,10 @@ if (showNoCancheroScreen) {
                                     });
                                     setConfirmationMessage('Partido cargado a confirmar por un admin.');
                                     setNoCancheroMatch({
-                                        team1Player1: { value: '', type: 'dropdown' },
-                                        team1Player2: { value: '', type: 'dropdown' },
-                                        team2Player1: { value: '', type: 'dropdown' },
-                                        team2Player2: { value: '', type: 'dropdown' },
+                                        team1Player1: { value: '', isCustom: false },
+                                        team1Player2: { value: '', isCustom: false },
+                                        team2Player1: { value: '', isCustom: false },
+                                        team2Player2: { value: '', isCustom: false },
                                         scoreTeam1: '',
                                         scoreTeam2: '',
                                         loadedBy: '',
@@ -1425,14 +1381,19 @@ if (showNoCancheroScreen) {
                   Ingresa tu PIN (4 dígitos):
                 </label>
                 <input
-                  type="password"
-                  id="welcome-pin-input"
-                  value={welcomePin}
-                  onChange={(e) => setWelcomePin(e.target.value)}
-                  maxLength="4"
-                  className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg text-center tracking-widest"
-                  placeholder="****"
-                />
+                    type="password"
+                    id="welcome-pin-input"
+                    value={welcomePin}
+                    onChange={(e) => setWelcomePin(e.target.value)}
+                    onKeyDown={(e) => {
+                      if (e.key === 'Enter') {
+                        handleWelcomeEnter();
+                      }
+                    }}
+                    maxLength="4"
+                    className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg text-center tracking-widest"
+                    placeholder="****"
+                  />
                 {selectedWelcomePlayer === 'Otro' && (
                   <p className="text-xs text-gray-500 mt-1">
                     Si selecciona "Otro" ingresa el código 1111
