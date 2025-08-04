@@ -61,7 +61,7 @@ const isPredefinedPlayer = (playerName) => playerName && playerList.includes(pla
 // Componente de Copyright
 const CopyrightFooter = () => (
   <footer className="mt-6 text-center text-gray-300 text-sm">
-    © 2025 Bruno Canedo. Prohibida la reproducción o uso de la app sin permiso.
+    © 2025 Bruno Canedo. Prohibida la reproducción o uso de la App sin permiso.
   </footer>
 );
 
@@ -142,6 +142,33 @@ function App() {
         date: new Date().toLocaleDateString('en-CA'),
     });
     const [confirmationMessage, setConfirmationMessage] = useState('');
+
+    useEffect(() => {
+  // Deshabilitar clic derecho
+  const disableRightClick = (e) => {
+    e.preventDefault();
+    alert('El clic derecho está deshabilitado para proteger el contenido.');
+  };
+  document.addEventListener('contextmenu', disableRightClick);
+
+  // Detectar apertura de herramientas de desarrollador
+  const detectDevTools = () => {
+    const threshold = 160;
+    const widthThreshold = window.outerWidth - window.innerWidth > threshold;
+    const heightThreshold = window.outerHeight - window.innerHeight > threshold;
+    if (widthThreshold || heightThreshold) {
+      alert('Por favor, no uses las herramientas de desarrollador.');
+      window.location.reload(); // Recarga la página si se detectan
+    }
+  };
+  window.addEventListener('resize', detectDevTools);
+
+  return () => {
+    document.removeEventListener('contextmenu', disableRightClick);
+    window.removeEventListener('resize', detectDevTools);
+  };
+}, []);
+
 
     useEffect(() => {
         const setupFirebase = async () => {
