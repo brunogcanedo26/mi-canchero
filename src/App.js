@@ -2,31 +2,32 @@ import React, { useState, useEffect, useMemo } from 'react';
 import { initializeApp } from 'firebase/app';
 import { getAuth, signInAnonymously, onAuthStateChanged } from 'firebase/auth';
 import { 
-    getFirestore, 
-    collection, 
-    addDoc, 
-    onSnapshot,  
-    doc, 
-    deleteDoc, 
-    updateDoc,
-    setDoc,
-    Timestamp,
-    query,
-    limit,
-    where,
-    enableIndexedDbPersistence
+ getFirestore, 
+ collection, 
+ addDoc, 
+ onSnapshot,  
+ doc, 
+ deleteDoc, 
+ updateDoc,
+ setDoc,
+ Timestamp,
+ query,
+ limit,
+ where,
+ enableIndexedDbPersistence
 } from 'firebase/firestore';
-import { PlusCircle, Trash2, Edit, Save, XCircle, Download, LogIn, LogOut, BarChart2 } from 'lucide-react';
+import { PlusCircle, Trash2, Edit, Save, XCircle, Download, LogIn, LogOut, BarChart2, UserPlus, ArrowLeft } from 'lucide-react';
 import Calendar from 'react-calendar';
 import './styles/Calendar.css';
 import './styles/Watermark.css';
+import emailjs from '@emailjs/browser';
 
 // Firebase configuration and initialization
 const firebaseConfig = process.env.REACT_APP_FIREBASE_CONFIG ? JSON.parse(process.env.REACT_APP_FIREBASE_CONFIG) : {};
 const app = initializeApp(firebaseConfig);
 const db = getFirestore(app);
 enableIndexedDbPersistence(db).catch((err) => {
-    console.error("Error enabling Firestore persistence:", err);
+ console.error("Error enabling Firestore persistence:", err);
 });
 const auth = getAuth(app);
 
@@ -35,31 +36,26 @@ const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
 
 // Predefined list of players for match entry, sorted alphabetically
 const playerList = [
-    "Ale Perrone", "Alexis", "Ariel", "Bruno", "Condor", "Coreano", "Daniel", "Diego Balazo", "Elvis", 
-    "Ezequiel", "Facundo", "Federico", "Fito", "Franco", "Gaby Mecanico", "German", "Guillermo", "Hector Musico", 
-    "Hugo", "Ivan", "Javier", "Joni", "Julian Olivieri", "Julian Rugna", "Lautaro", "Leandro", "Lucy", "Luigi", 
-    "Luis", "Marcelo", "Marcelo Zurdo", "Mariano", "Mario Arriola", "Martin", "Matias", "Maxi", "Mono", "Nacho", 
-    "Nico Ciudad", "Raul", "Roberto", "Rodrigo", "Ruben", "Sergio", "Sosa", "Tano", "Tito", "Vasco", 
-    "Zurdo Diaz", "Zurdo Ruben"
+ "Ale Perrone", "Alexis", "Ariel", "Bruno", "Condor", "Coreano", "Daniel", "Diego Balazo", "Elvis", 
+ "Ezequiel", "Facundo", "Federico", "Fito", "Franco", "Gaby Mecanico", "German", "Guillermo", "Hector Musico", 
+ "Hugo", "Ivan", "Javier", "Joni", "Julian Olivieri", "Julian Rugna", "Lautaro", "Leandro", "Lucy", "Luigi", 
+ "Luis", "Marcelo", "Marcelo Zurdo", "Mariano", "Mario Arriola", "Martin", "Matias", "Maxi", "Mono", "Nacho", 
+ "Nico Ciudad", "Raul", "Roberto", "Rodrigo", "Ruben", "Sergio", "Sosa", "Tano", "Tito", "Vasco", 
+ "Zurdo Diaz", "Zurdo Ruben"
 ].sort();
 
-// Predefined list of players for the welcome screen dropdown, sorted alphabetically
-const welcomePlayerList = [
-    "Bruno", "Ezequiel", "Ruben"
-].sort();
-
-// Hardcoded PINs for demonstration (HIGHLY INSECURE IN REAL APPLICATIONS)
-const playerPins = {
-    "Bruno": "1234",
-    "Ruben": "5678",
-    "Ezequiel": "3456",
+// Hardcoded users for login
+const users = {
+  "admin": { password: "admin123", isAdmin: true },
+  "usuario1": { password: "pass1", isAdmin: false },
+  "usuario2": { password: "pass2", isAdmin: false }
 };
 
 // Helper function to check if a player name is in the predefined list
 const isPredefinedPlayer = (playerName) => playerName && playerList.includes(playerName);
 
 // Componente de Copyright
-const CopyrightFooter = () => (
+const CopyrightFooter = () => (  
   <footer className="mt-6 text-center text-gray-300 text-sm">
     © 2025 Bruno Canedo. Prohibida la reproducción o uso de la App sin permiso.
   </footer>
@@ -67,168 +63,270 @@ const CopyrightFooter = () => (
 
 // ErrorBoundary component to catch rendering errors
 class ErrorBoundary extends React.Component {
-    state = { hasError: false, error: null };
-
-    static getDerivedStateFromError(error) {
-        return { hasError: true, error };
-    }
-
-    render() {
-        if (this.state.hasError) {
-            return (
-                <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative m-4">
-                    <strong className="font-bold">Error:</strong>
-                    <span className="block sm:inline"> Ocurrió un error al renderizar la página. Por favor, recarga la página o contacta al administrador.</span>
-                    <p className="text-sm mt-2">Detalles: {this.state.error?.message}</p>
-                </div>
-            );
-        }
-        return this.props.children;
-    }
+ state = { hasError: false, error: null };
+ static getDerivedStateFromError(error) {
+     return { hasError: true, error };
+ }
+ render() {
+     if (this.state.hasError) {
+         return (
+             <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative m-4">
+                 <strong className="font-bold">Error:</strong>
+                 <span className="block sm:inline"> Ocurrió un error al renderizar la página. Por favor, recarga la página o contacta al administrador.</span>
+                 <p className="text-sm mt-2">Detalles: {this.state.error?.message}</p>
+             </div>
+         );
+     }
+     return this.props.children;
+ }
 }
 
 function App() {
-    const [matches, setMatches] = useState([]);
-    const [deletedMatches, setDeletedMatches] = useState([]);
-    const [fetchedDailySummaries, setFetchedDailySummaries] = useState({});
-    const [newMatch, setNewMatch] = useState({
-        team1Player1: { value: '', isCustom: false },
-        team1Player2: { value: '', isCustom: false },
-        team2Player1: { value: '', isCustom: false },
-        team2Player2: { value: '', isCustom: false },
-        scoreTeam1: '',
-        scoreTeam2: '',
-        comment: '',
-        date: new Date().toLocaleDateString('en-CA'),
-    });
-    const [userId, setUserId] = useState(null);
-    const [loading, setLoading] = useState(true);
-    const [editingMatchId, setEditingMatchId] = useState(null);
-    const [editedMatch, setEditedMatch] = useState(null);
-    const [showConfirmModal, setShowConfirmModal] = useState(false);
-    const [matchToDelete, setMatchToDelete] = useState(null);
-    const [errorMessage, setErrorMessage] = useState('');
-    const [selectedDate, setSelectedDate] = useState(null);
-    const [calendarDate, setCalendarDate] = useState(new Date());
-    const [showStats, setShowStats] = useState(false);
-    const [statsPlayerFilter, setStatsPlayerFilter] = useState('');
-    const [statsDateFrom, setStatsDateFrom] = useState('');
-    const [statsDateTo, setStatsDateTo] = useState('');
-    const [statsYearFilter, setStatsYearFilter] = useState('');
-    const [statsMonthFilter, setStatsMonthFilter] = useState('');
-    const [showWelcomeScreen, setShowWelcomeScreen] = useState(true);
-    const [selectedWelcomePlayer, setSelectedWelcomePlayer] = useState('');
-    const [customWelcomePlayerName, setCustomWelcomePlayerName] = useState('');
-    const [welcomePin, setWelcomePin] = useState('');
-    const [welcomeScreenError, setWelcomeScreenError] = useState('');
-    const [loadedByPlayer, setLoadedByPlayer] = useState('');
-    const [showFullRanking, setShowFullRanking] = useState({
-        played: false,
-        won: false,
-        lost: false,
-        winPercentage: false,
-    });
-    const [showMatchList, setShowMatchList] = useState(false); // Estado para controlar la visibilidad de la lista
-    const [visibleMatchesCount, setVisibleMatchesCount] = useState(10); // Estado para controlar cuántos partidos se muestran
-    const [showNoCancheroScreen, setShowNoCancheroScreen] = useState(false);
-    const [noCancheroMatch, setNoCancheroMatch] = useState({
-        team1Player1: { value: '', isCustom: false },
-        team1Player2: { value: '', isCustom: false },
-        team2Player1: { value: '', isCustom: false },
-        team2Player2: { value: '', isCustom: false },
-        scoreTeam1: '',
-        scoreTeam2: '',
-        loadedBy: '',
-        date: new Date().toLocaleDateString('en-CA'),
-    });
-    const [confirmationMessage, setConfirmationMessage] = useState('');
+ // Estados para el nuevo sistema de login
+ const [currentScreen, setCurrentScreen] = useState('login'); // 'login', 'register', 'welcome', 'app', 'stats', 'noCancheroScreen'
+ const [loginForm, setLoginForm] = useState({ username: '', password: '' });
+ const [registerForm, setRegisterForm] = useState({
+   nombre: '',
+   apellido: '',
+   apodo: '',
+   email: '',
+   club: '',
+   password: '',
+   repeatPassword: ''
+ });
+ const [loginError, setLoginError] = useState('');
+ const [registerError, setRegisterError] = useState('');
+ const [registerSuccess, setRegisterSuccess] = useState('');
+ const [currentUser, setCurrentUser] = useState(''); // Guardamos el nombre de usuario del login
+ const [isAdmin, setIsAdmin] = useState(false); // Guardamos si el usuario es administrador
 
-    useEffect(() => {
+ // Estados existentes
+ const [matches, setMatches] = useState([]);
+ const [deletedMatches, setDeletedMatches] = useState([]);
+ const [fetchedDailySummaries, setFetchedDailySummaries] = useState({});
+ const [newMatch, setNewMatch] = useState({
+     team1Player1: { value: '', isCustom: false },
+     team1Player2: { value: '', isCustom: false },
+     team2Player1: { value: '', isCustom: false },
+     team2Player2: { value: '', isCustom: false },
+     scoreTeam1: '',
+     scoreTeam2: '',
+     comment: '',
+     date: new Date().toLocaleDateString('en-CA'),
+ });
+ const [userId, setUserId] = useState(null);
+ const [loading, setLoading] = useState(true);
+ const [editingMatchId, setEditingMatchId] = useState(null);
+ const [editedMatch, setEditedMatch] = useState(null);
+ const [showConfirmModal, setShowConfirmModal] = useState(false);
+ const [matchToDelete, setMatchToDelete] = useState(null);
+ const [errorMessage, setErrorMessage] = useState('');
+ const [selectedDate, setSelectedDate] = useState(null);
+ const [calendarDate, setCalendarDate] = useState(new Date());
+ const [statsPlayerFilter, setStatsPlayerFilter] = useState('');
+ const [statsDateFrom, setStatsDateFrom] = useState('');
+ const [statsDateTo, setStatsDateTo] = useState('');
+ const [statsYearFilter, setStatsYearFilter] = useState('');
+ const [statsMonthFilter, setStatsMonthFilter] = useState('');
+ const [showFullRanking, setShowFullRanking] = useState({
+     played: false,
+     won: false,
+     lost: false,
+     winPercentage: false,
+ });
+ const [showMatchList, setShowMatchList] = useState(false);
+ const [visibleMatchesCount, setVisibleMatchesCount] = useState(10);
+ const [noCancheroMatch, setNoCancheroMatch] = useState({
+     team1Player1: { value: '', isCustom: false },
+     team1Player2: { value: '', isCustom: false },
+     team2Player1: { value: '', isCustom: false },
+     team2Player2: { value: '', isCustom: false },
+     scoreTeam1: '',
+     scoreTeam2: '',
+     loadedBy: '',
+     date: new Date().toLocaleDateString('en-CA'),
+ });
+ const [confirmationMessage, setConfirmationMessage] = useState('');
+
+ // Funciones para el nuevo sistema de login
+ const handleLogin = (e) => {
+   e.preventDefault();
+   const { username, password } = loginForm;
+   
+   if (users[username] && users[username].password === password) {
+     // Login exitoso
+     setLoginError('');
+     setCurrentUser(username); // Guardamos el nombre de usuario
+     setIsAdmin(users[username].isAdmin || false); // Guardamos si es administrador
+     setCurrentScreen('welcome');
+   } else {
+     setLoginError('Usuario o contraseña incorrectos');
+   }
+ };
+
+const handleRegister = async (e) => {
+  e.preventDefault();
+  const { nombre, apellido, apodo, email, club, password, repeatPassword } = registerForm;  // Agregamos email
+  
+  // Validar que las contraseñas coincidan
+  if (password !== repeatPassword) {
+    setRegisterError('Las contraseñas no coinciden');
+    return;
+  }
+  
+  try {
+    // Enviar email con EmailJS
+    const templateParams = {
+      nombre,
+      apellido,
+      apodo,
+      email,  // Agregamos email
+      club,
+      password,
+      to_email: process.env.REACT_APP_EMAIL_TO,
+      date: new Date().toLocaleString()
+    };
+    
+    await emailjs.send(
+      process.env.REACT_APP_EMAILJS_SERVICE_ID,
+      process.env.REACT_APP_EMAILJS_TEMPLATE_ID,
+      templateParams,
+      process.env.REACT_APP_EMAILJS_USER_ID
+    );
+    
+    setRegisterSuccess('Solicitud enviada correctamente. Pronto recibirás una respuesta.');
+    setRegisterForm({
+      nombre: '',
+      apellido: '',
+      apodo: '',
+      email: '',  // Agregamos email
+      club: '',
+      password: '',
+      repeatPassword: ''
+    });
+    setRegisterError('');
+    
+    // Volver a la pantalla de login después de 3 segundos
+    setTimeout(() => {
+      setCurrentScreen('login');
+      setRegisterSuccess('');
+    }, 3000);
+    
+  } catch (error) {
+    console.error('Error al enviar email:', error);
+    setRegisterError(`Error: ${error.text || error.message || 'Error al enviar la solicitud. Inténtalo de nuevo.'}`);
+  }
+};
+
+ const goToRegister = () => {
+   setCurrentScreen('register');
+   setLoginError('');
+ };
+
+ const goToLogin = () => {
+   setCurrentScreen('login');
+   setRegisterError('');
+   setRegisterSuccess('');
+ };
+
+ // Función para ir a la pantalla principal (app)
+const goToApp = () => {
+  if (isAdmin) {
+    setCurrentScreen('app');
+  } else {
+    setErrorMessage('No tienes permisos para acceder a esta función');
+  }
+};
+
+ // Función para ir a estadísticas
+ const goToStats = () => {
+   setCurrentScreen('stats');
+ };
+
+ // Función para ir a partido sin canchero
+ const goToNoCanchero = () => {
+   setCurrentScreen('noCancheroScreen');
+ };
+
+ // Resto del código existente (sin cambios)
+ useEffect(() => {
   // Deshabilitar clic derecho
   const disableRightClick = (e) => {
-    e.preventDefault();
-    alert('El clic derecho está deshabilitado para proteger el contenido.');
+ e.preventDefault();
+ alert('El clic derecho está deshabilitado para proteger el contenido.');
   };
   document.addEventListener('contextmenu', disableRightClick);
-
   // Detectar apertura de herramientas de desarrollador
   const detectDevTools = () => {
-    const threshold = 160;
-    const widthThreshold = window.outerWidth - window.innerWidth > threshold;
-    const heightThreshold = window.outerHeight - window.innerHeight > threshold;
-    if (widthThreshold || heightThreshold) {
-      alert('Por favor, no uses las herramientas de desarrollador.');
-      window.location.reload(); // Recarga la página si se detectan
-    }
+ const threshold = 160;
+ const widthThreshold = window.outerWidth - window.innerWidth > threshold;
+ const heightThreshold = window.outerHeight - window.innerHeight > threshold;
+ if (widthThreshold || heightThreshold) {
+   alert('Por favor, no uses las herramientas de desarrollador.');
+   window.location.reload(); // Recarga la página si se detectan
+ }
   };
   window.addEventListener('resize', detectDevTools);
-
   return () => {
-    document.removeEventListener('contextmenu', disableRightClick);
-    window.removeEventListener('resize', detectDevTools);
+ document.removeEventListener('contextmenu', disableRightClick);
+ window.removeEventListener('resize', detectDevTools);
   };
 }, []);
 
+ useEffect(() => {
+ const setupFirebase = async () => {
+     try {
+         await signInAnonymously(auth);
+     } catch (error) {
+         console.error("Error during Firebase anonymous authentication:", error);
+         setErrorMessage("Error al iniciar la sesión anónima de Firebase.");
+     }
+ };
+ setupFirebase();
+ const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
+     if (user) {
+         setUserId(user.uid);
+         setLoading(false);
+     } else {
+         setUserId(null);
+         setLoading(false);
+     }
+ });
+ return () => unsubscribeAuth();
+ }, []);
 
-    useEffect(() => {
-        const setupFirebase = async () => {
-            try {
-                await signInAnonymously(auth);
-            } catch (error) {
-                console.error("Error during Firebase anonymous authentication:", error);
-                setErrorMessage("Error al iniciar la sesión anónima de Firebase.");
-            }
-        };
-
-        setupFirebase();
-
-        const unsubscribeAuth = onAuthStateChanged(auth, (user) => {
-            if (user) {
-                setUserId(user.uid);
-                setLoading(false);
-            } else {
-                setUserId(null);
-                setLoading(false);
-            }
-        });
-
-        return () => unsubscribeAuth();
-    }, []);
-
-    useEffect(() => {
-        const matchesCollectionRef = collection(db, `artifacts/${appId}/matches`);
-        const deletedMatchesCollectionRef = collection(db, `artifacts/${appId}/deletedMatches`);
-
-        const matchesQuery = query(matchesCollectionRef, limit(100));
-        const deletedMatchesQuery = selectedDate
-            ? query(
-                  deletedMatchesCollectionRef,
-                  where("originalMatch.date", "==", selectedDate),
-                  limit(100)
-              )
-            : query(deletedMatchesCollectionRef, limit(100));
-        const dailySummariesQuery = selectedDate
-            ? query(
-                  collection(db, `artifacts/${appId}/dailySummaries`),
-                  where("date", "==", selectedDate),
-                  limit(100)
-              )
-            : query(collection(db, `artifacts/${appId}/dailySummaries`), limit(100));
-
-        const unsubscribeMatches = onSnapshot(matchesQuery, (matchesSnapshot) => {
-            const fetchedMatches = matchesSnapshot.docs.map(doc => ({
-    id: doc.id,
-    ...doc.data(),
-    team1Players: doc.data().team1Players || [],
-    team2Players: doc.data().team2Players || [],
-    date: doc.data().date || new Date().toISOString().split('T')[0],
-    winner: doc.data().winner || 'N/A',
-    comment: doc.data().comment || '',
-    loadedBy: doc.data().loadedBy || 'Desconocido',
-    timestamp: doc.data().timestamp || Timestamp.now(),
-    editHistory: doc.data().editHistory || [],
-    isDeleted: false,
-    pendingConfirmation: doc.data().pendingConfirmation || false
+ useEffect(() => {
+ const matchesCollectionRef = collection(db, `artifacts/${appId}/matches`);
+ const deletedMatchesCollectionRef = collection(db, `artifacts/${appId}/deletedMatches`);
+ const matchesQuery = query(matchesCollectionRef, limit(100));
+ const deletedMatchesQuery = selectedDate
+     ? query(
+           deletedMatchesCollectionRef,
+           where("originalMatch.date", "==", selectedDate),
+           limit(100)
+       )
+     : query(deletedMatchesCollectionRef, limit(100));
+ const dailySummariesQuery = selectedDate
+     ? query(
+           collection(db, `artifacts/${appId}/dailySummaries`),
+           where("date", "==", selectedDate),
+           limit(100)
+       )
+     : query(collection(db, `artifacts/${appId}/dailySummaries`), limit(100));
+ const unsubscribeMatches = onSnapshot(matchesQuery, (matchesSnapshot) => {
+     const fetchedMatches = matchesSnapshot.docs.map(doc => ({
+ id: doc.id,
+ ...doc.data(),
+ team1Players: doc.data().team1Players || [],
+ team2Players: doc.data().team2Players || [],
+ date: doc.data().date || new Date().toISOString().split('T')[0],
+ winner: doc.data().winner || 'N/A',
+ comment: doc.data().comment || '',
+ loadedBy: doc.data().loadedBy || 'Desconocido',
+ timestamp: doc.data().timestamp || Timestamp.now(),
+ editHistory: doc.data().editHistory || [],
+ isDeleted: false,
+ pendingConfirmation: doc.data().pendingConfirmation || false
 }));
             fetchedMatches.sort((a, b) => new Date(b.date) - new Date(a.date));
             setMatches(fetchedMatches);
@@ -237,7 +335,6 @@ function App() {
             console.error("Error fetching matches:", error);
             setErrorMessage("Error al cargar los partidos. Por favor, intenta de nuevo.");
         });
-
         const unsubscribeDeletedMatches = onSnapshot(deletedMatchesQuery, (deletedSnapshot) => {
             const fetchedDeletedMatches = deletedSnapshot.docs.map(doc => ({
                 id: doc.id,
@@ -251,7 +348,6 @@ function App() {
             console.error("Error fetching deleted matches:", error);
             setErrorMessage("Error al cargar los partidos eliminados. Por favor, intenta de nuevo.");
         });
-
         const unsubscribeDailySummaries = onSnapshot(dailySummariesQuery, { source: "cache" }, (dailySummariesSnapshot) => {
             const fetchedDailySummaries = {};
             dailySummariesSnapshot.forEach(doc => {
@@ -266,7 +362,6 @@ function App() {
             console.error("Error fetching daily summaries:", error);
             setErrorMessage("Error al cargar los resúmenes diarios.");
         });
-
         return () => {
             unsubscribeMatches();
             unsubscribeDeletedMatches();
@@ -276,7 +371,7 @@ function App() {
 
 const groupedMatches = useMemo(() => {
     const grouped = {};
-    const allMatches = [...matches, ...deletedMatches].filter(match => !match.isDeleted); // Filtrar partidos no eliminados
+    const allMatches = [...matches, ...deletedMatches].filter(match => !match.isDeleted);
     allMatches.forEach(match => {
         const date = match.date || new Date().toLocaleDateString('en-CA');
         if (!grouped[date]) {
@@ -286,7 +381,6 @@ const groupedMatches = useMemo(() => {
             };
         }
         grouped[date].matches.push(match);
-
         const allPlayersInMatch = [...(match.team1Players || []), ...(match.team2Players || [])];
         allPlayersInMatch.forEach(player => {
             if (!player) return;
@@ -299,7 +393,6 @@ const groupedMatches = useMemo(() => {
                 grouped[date].summary[player].paymentHistory = fetchedDailySummaries[date][player].paymentHistory || [];
             }
         });
-
         if (match.winner && match.winner !== 'Empate' && match.winner !== 'N/A') {
             if (match.winner.startsWith('Equipo 1')) {
                 (match.team1Players || []).forEach(player => {
@@ -318,7 +411,6 @@ const groupedMatches = useMemo(() => {
             }
         }
     });
-
     Object.keys(grouped).forEach(date => {
         grouped[date].matches.sort((a, b) => {
             if (a.isDeleted === b.isDeleted) {
@@ -327,126 +419,113 @@ const groupedMatches = useMemo(() => {
             return a.isDeleted ? 1 : -1;
         });
     });
-
     return grouped;
 }, [matches, deletedMatches, fetchedDailySummaries]);
 
+const handleNewMatchOtherInputChange = (e) => {
+    const { name, value } = e.target;
+    setNewMatch({ ...newMatch, [name]: value });
+};
 
-    const handleNewMatchOtherInputChange = (e) => {
-        const { name, value } = e.target;
-        setNewMatch({ ...newMatch, [name]: value });
-    };
+const handleEditedMatchOtherInputChange = (e) => {
+    const { name, value } = e.target;
+    setEditedMatch({ ...editedMatch, [name]: value });
+};
 
-    const handleEditedMatchOtherInputChange = (e) => {
-        const { name, value } = e.target;
-        setEditedMatch({ ...editedMatch, [name]: value });
-    };
+const handlePaidChange = async (date, player, isPaid) => {
+    if (!userId) {
+        setErrorMessage("La aplicación no está lista. Por favor, espera o recarga.");
+        return;
+    }
+    try {
+        const dailySummaryDocRef = doc(db, `artifacts/${appId}/dailySummaries`, `${date}_${player}`);
+        const paymentHistoryEntry = {
+            changedBy: currentUser, // Usamos el usuario actual
+            action: isPaid ? 'Marcado como pagado' : 'Marcado como no pagado',
+            timestamp: Timestamp.now()
+        };
+        await setDoc(dailySummaryDocRef, {
+            date,
+            player,
+            paid: isPaid,
+            paymentHistory: [
+                ...(groupedMatches[date]?.summary[player]?.paymentHistory || []),
+                paymentHistoryEntry
+            ]
+        }, { merge: true });
+        setErrorMessage('');
+    } catch (e) {
+        console.error("Error updating paid status:", e);
+        setErrorMessage("Error al actualizar el estado de pago. Intenta de nuevo.");
+    }
+};
 
-    const handlePaidChange = async (date, player, isPaid) => {
-        if (!userId) {
-            setErrorMessage("La aplicación no está lista. Por favor, espera o recarga.");
+const addMatch = async () => {
+    if (!userId) {
+        setErrorMessage("La aplicación no está lista. Por favor, espera o recarga.");
+        return;
+    }
+    const team1Players = [newMatch.team1Player1.value, newMatch.team1Player2.value].filter(p => p);
+    const team2Players = [newMatch.team2Player1.value, newMatch.team2Player2.value].filter(p => p);
+    const { date, comment } = newMatch;
+    if (team1Players.length !== 2 || team2Players.length !== 2 || !date) {
+        setErrorMessage("Por favor, completa todos los campos de jugadores y la fecha.");
+        return;
+    }
+    if (team1Players[0] === team1Players[1]) {
+        setErrorMessage("Los jugadores del Equipo 1 no pueden ser el mismo.");
+        return;
+    }
+    if (team2Players[0] === team2Players[1]) {
+        setErrorMessage("Los jugadores del Equipo 2 no pueden ser el mismo.");
+        return;
+    }
+    const allPlayers = [...team1Players, ...team2Players];
+    const uniquePlayers = new Set(allPlayers);
+    if (uniquePlayers.size !== allPlayers.length) {
+        setErrorMessage("Un jugador no puede estar en ambos equipos.");
+        return;
+    }
+    let score1 = newMatch.scoreTeam1;
+    let score2 = newMatch.scoreTeam2;
+    if (score1 !== '') {
+        score1 = parseInt(score1);
+        if (isNaN(score1) || score1 < 0) {
+            setErrorMessage("La puntuación del Equipo 1 debe ser un número válido y no negativo.");
             return;
         }
-
-        try {
-            const dailySummaryDocRef = doc(db, `artifacts/${appId}/dailySummaries`, `${date}_${player}`);
-            const paymentHistoryEntry = {
-                changedBy: loadedByPlayer,
-                action: isPaid ? 'Marcado como pagado' : 'Marcado como no pagado',
-                timestamp: Timestamp.now()
-            };
-
-            await setDoc(dailySummaryDocRef, {
-                date,
-                player,
-                paid: isPaid,
-                paymentHistory: [
-                    ...(groupedMatches[date]?.summary[player]?.paymentHistory || []),
-                    paymentHistoryEntry
-                ]
-            }, { merge: true });
-            setErrorMessage('');
-        } catch (e) {
-            console.error("Error updating paid status:", e);
-            setErrorMessage("Error al actualizar el estado de pago. Intenta de nuevo.");
-        }
-    };
-
-    const addMatch = async () => {
-        if (!userId) {
-            setErrorMessage("La aplicación no está lista. Por favor, espera o recarga.");
+    }
+    if (score2 !== '') {
+        score2 = parseInt(score2);
+        if (isNaN(score2) || score2 < 0) {
+            setErrorMessage("La puntuación del Equipo 2 debe ser un número válido y no negativo.");
             return;
         }
-
-        const team1Players = [newMatch.team1Player1.value, newMatch.team1Player2.value].filter(p => p);
-        const team2Players = [newMatch.team2Player1.value, newMatch.team2Player2.value].filter(p => p);
-        const { date, comment } = newMatch;
-
-        if (team1Players.length !== 2 || team2Players.length !== 2 || !date) {
-            setErrorMessage("Por favor, completa todos los campos de jugadores y la fecha.");
-            return;
+    }
+    let winner = 'Empate';
+    if (typeof score1 === 'number' && typeof score2 === 'number') {
+        if (score1 > score2) {
+            winner = `Equipo 1 (${team1Players.join(' y ')})`;
+        } else if (score2 > score1) {
+            winner = `Equipo 2 (${team2Players.join(' y ')})`;
         }
-
-        if (team1Players[0] === team1Players[1]) {
-            setErrorMessage("Los jugadores del Equipo 1 no pueden ser el mismo.");
-            return;
-        }
-        if (team2Players[0] === team2Players[1]) {
-            setErrorMessage("Los jugadores del Equipo 2 no pueden ser el mismo.");
-            return;
-        }
-
-        const allPlayers = [...team1Players, ...team2Players];
-        const uniquePlayers = new Set(allPlayers);
-        if (uniquePlayers.size !== allPlayers.length) {
-            setErrorMessage("Un jugador no puede estar en ambos equipos.");
-            return;
-        }
-
-        let score1 = newMatch.scoreTeam1;
-        let score2 = newMatch.scoreTeam2;
-
-        if (score1 !== '') {
-            score1 = parseInt(score1);
-            if (isNaN(score1) || score1 < 0) {
-                setErrorMessage("La puntuación del Equipo 1 debe ser un número válido y no negativo.");
-                return;
-            }
-        }
-        if (score2 !== '') {
-            score2 = parseInt(score2);
-            if (isNaN(score2) || score2 < 0) {
-                setErrorMessage("La puntuación del Equipo 2 debe ser un número válido y no negativo.");
-                return;
-            }
-        }
-
-        let winner = 'Empate';
-        if (typeof score1 === 'number' && typeof score2 === 'number') {
-            if (score1 > score2) {
-                winner = `Equipo 1 (${team1Players.join(' y ')})`;
-            } else if (score2 > score1) {
-                winner = `Equipo 2 (${team2Players.join(' y ')})`;
-            }
-        } else {
-            winner = 'N/A';
-        }
-
-        try {
-            await addDoc(collection(db, `artifacts/${appId}/matches`), {
-    team1Players,
-    team2Players,
-    scoreTeam1: score1,
-    scoreTeam2: score2,
-    date,
-    comment,
-    winner,
-    loadedBy: loadedByPlayer,
-    timestamp: Timestamp.now(),
-    editHistory: [],
-    isDeleted: false,
-    pendingConfirmation: false
-});
+    } else {
+        winner = 'N/A';
+    }
+    try {
+        await addDoc(collection(db, `artifacts/${appId}/matches`), {
+team1Players,
+team2Players,
+scoreTeam1: score1,
+scoreTeam2: score2,
+date,
+comment,
+winner,
+loadedBy: currentUser, // Usamos el usuario actual
+timestamp: Timestamp.now(),
+editHistory: [],
+isDeleted: false,
+pendingConfirmation: false});
             setNewMatch({
                 team1Player1: { value: '', isCustom: false },
                 team1Player2: { value: '', isCustom: false },
@@ -477,10 +556,9 @@ const groupedMatches = useMemo(() => {
                     ...matchToDelete,
                     isDeleted: true
                 },
-                deletedBy: loadedByPlayer,
+                deletedBy: currentUser, // Usamos el usuario actual
                 deletedTimestamp: Timestamp.now()
             });
-
             await deleteDoc(doc(db, `artifacts/${appId}/matches`, matchToDelete.id));
             setShowConfirmModal(false);
             setMatchToDelete(null);
@@ -496,7 +574,6 @@ const groupedMatches = useMemo(() => {
         setErrorMessage("La aplicación no está lista. Por favor, espera o recarga.");
         return;
     }
-
     const transformedEditedMatch = {
         ...match,
         team1Player1: { value: match.team1Players[0] || '', isCustom: !isPredefinedPlayer(match.team1Players[0]) },
@@ -517,16 +594,13 @@ const groupedMatches = useMemo(() => {
 
     const saveEditedMatch = async () => {
         if (!userId || !editedMatch) return;
-
         const team1Players = [editedMatch.team1Player1.value, editedMatch.team1Player2.value].filter(p => p);
         const team2Players = [editedMatch.team2Player1.value, editedMatch.team2Player2.value].filter(p => p);
         const { date, comment } = editedMatch;
-
         if (team1Players.length !== 2 || team2Players.length !== 2 || !date) {
             setErrorMessage("Por favor, completa todos los campos de jugadores y la fecha para editar.");
             return;
         }
-
         if (team1Players[0] === team1Players[1]) {
             setErrorMessage("Los jugadores del Equipo 1 no pueden ser el mismo.");
             return;
@@ -535,17 +609,14 @@ const groupedMatches = useMemo(() => {
             setErrorMessage("Los jugadores del Equipo 2 no pueden ser el mismo.");
             return;
         }
-
         const allPlayers = [...team1Players, ...team2Players];
         const uniquePlayers = new Set(allPlayers);
         if (uniquePlayers.size !== allPlayers.length) {
             setErrorMessage("Un jugador no puede estar en ambos equipos.");
             return;
         }
-
         let score1 = editedMatch.scoreTeam1;
         let score2 = editedMatch.scoreTeam2;
-
         if (score1 !== '') {
             score1 = parseInt(score1);
             if (isNaN(score1) || score1 < 0) {
@@ -560,7 +631,6 @@ const groupedMatches = useMemo(() => {
                 return;
             }
         }
-
         let winner = 'Empate';
         if (typeof score1 === 'number' && typeof score2 === 'number') {
             if (score1 > score2) {
@@ -571,7 +641,6 @@ const groupedMatches = useMemo(() => {
         } else {
             winner = 'N/A';
         }
-
         const originalMatch = matches.find(m => m.id === editedMatch.id);
         const changes = [];
         if (originalMatch) {
@@ -594,14 +663,12 @@ const groupedMatches = useMemo(() => {
                 changes.push(`Comentario cambiado de "${originalMatch.comment || 'N/A'}" a "${comment || 'N/A'}"`);
             }
         }
-
         try {
             const newEditEntry = {
-                editedBy: loadedByPlayer,
+                editedBy: currentUser, // Usamos el usuario actual
                 editedTimestamp: Timestamp.now(),
                 changes: changes.length > 0 ? changes : ['Edición menor']
             };
-
             await updateDoc(doc(db, `artifacts/${appId}/matches`, editedMatch.id), {
                 team1Players,
                 team2Players,
@@ -627,7 +694,6 @@ const groupedMatches = useMemo(() => {
             setErrorMessage("No hay partidos para descargar.");
             return;
         }
-
         const headers = [
             "Número",
             "Fecha",
@@ -651,30 +717,24 @@ const groupedMatches = useMemo(() => {
             "Historial de Ediciones",
             "Historial de Pagos"
         ];
-
         const allMatches = [...matches, ...deletedMatches];
         const rows = allMatches.map((match, index) => {
             const team1Player1Paid = groupedMatches[match.date]?.summary[match.team1Players[0]]?.paid ? 'Sí' : 'No';
             const team1Player2Paid = groupedMatches[match.date]?.summary[match.team1Players[1]]?.paid ? 'Sí' : 'No';
             const team2Player1Paid = groupedMatches[match.date]?.summary[match.team2Players[0]]?.paid ? 'Sí' : 'No';
             const team2Player2Paid = groupedMatches[match.date]?.summary[match.team2Players[1]]?.paid ? 'Sí' : 'No';
-
             const score1 = match.scoreTeam1 !== '' ? match.scoreTeam1 : 'N/A';
             const score2 = match.scoreTeam2 !== '' ? match.scoreTeam2 : 'N/A';
-
             const team1Won = match.winner && match.winner.startsWith('Equipo 1') ? 'Sí' : 'No';
             const team2Won = match.winner && match.winner.startsWith('Equipo 2') ? 'Sí' : 'No';
-
             const loadedBy = match.loadedBy || 'Desconocido';
             const comment = match.comment || '';
             const status = match.isDeleted ? 'Dado de Baja' : 'Activo';
             const deletedBy = match.isDeleted ? match.deletedBy || 'Desconocido' : '';
             const deletedTimestamp = match.isDeleted && match.deletedTimestamp ? new Date(match.deletedTimestamp.toDate()).toLocaleString() : '';
-
             const editHistoryString = (match.editHistory || [])
                 .map(edit => `${edit.editedBy} (${new Date(edit.editedTimestamp.toDate()).toLocaleString()}): ${edit.changes.join(', ')}`)
                 .join('; ');
-
             const paymentHistoryString = [
                 ...(groupedMatches[match.date]?.summary[match.team1Players[0]]?.paymentHistory || []),
                 ...(groupedMatches[match.date]?.summary[match.team1Players[1]]?.paymentHistory || []),
@@ -683,7 +743,6 @@ const groupedMatches = useMemo(() => {
             ]
                 .map(entry => `${entry.changedBy} (${new Date(entry.timestamp.toDate()).toLocaleString()}): ${entry.action}`)
                 .join('; ');
-
             return [
                 index + 1,
                 match.date,
@@ -708,7 +767,6 @@ const groupedMatches = useMemo(() => {
                 paymentHistoryString
             ].map(item => `"${String(item).replace(/"/g, '""')}"`).join(',');
         });
-
         const csvContent = [headers.map(header => `"${header}"`).join(','), ...rows].join('\n');
         const blob = new Blob([csvContent], { type: 'text/csv;charset=utf-8;' });
         const link = document.createElement('a');
@@ -718,52 +776,6 @@ const groupedMatches = useMemo(() => {
         link.click();
         document.body.removeChild(link);
         setErrorMessage('Historial descargado exitosamente.');
-    };
-
-    const handleWelcomeEnter = () => {
-        setWelcomeScreenError('');
-
-        let playerToLoad = selectedWelcomePlayer;
-
-        if (selectedWelcomePlayer === '') {
-            setWelcomeScreenError('Por favor, selecciona un jugador para ingresar.');
-            return;
-        }
-
-        if (selectedWelcomePlayer === 'Otro') {
-            if (customWelcomePlayerName.trim() === '') {
-                setWelcomeScreenError('Por favor, ingresa un nombre para el jugador "Otro".');
-                return;
-            }
-            playerToLoad = customWelcomePlayerName.trim();
-        }
-
-        const expectedPin = playerPins[selectedWelcomePlayer];
-        if (!expectedPin) {
-            setWelcomeScreenError('PIN no configurado para este jugador. Contacta al administrador.');
-            return;
-        }
-
-        if (welcomePin !== expectedPin) {
-            setWelcomeScreenError('PIN incorrecto. Intenta de nuevo.');
-            setWelcomePin('');
-            return;
-        }
-
-        setLoadedByPlayer(playerToLoad);
-        setShowWelcomeScreen(false);
-        setShowStats(false);
-        setWelcomePin('');
-        setCustomWelcomePlayerName('');
-    };
-
-    const handleExitApp = () => {
-        window.location.reload();
-    };
-
-    const handleShowStats = () => {
-        setShowStats(true);
-        setShowWelcomeScreen(false);
     };
 
     const filteredMatches = matches.filter(match => {
@@ -831,15 +843,12 @@ const groupedMatches = useMemo(() => {
         const playedRanking = Object.entries(statsSummary)
             .map(([player, stats]) => ({ player, ...stats }))
             .sort((a, b) => b.played - a.played || a.player.localeCompare(b.player));
-
         const wonRanking = Object.entries(statsSummary)
             .map(([player, stats]) => ({ player, ...stats }))
             .sort((a, b) => b.won - a.won || a.player.localeCompare(b.player));
-
         const lostRanking = Object.entries(statsSummary)
             .map(([player, stats]) => ({ player, ...stats }))
             .sort((a, b) => b.lost - a.lost || a.player.localeCompare(b.player));
-
         const winPercentageRanking = Object.entries(statsSummary)
   .map(([player, stats]) => ({ player, ...stats }))
   .sort((a, b) => {
@@ -848,50 +857,47 @@ const groupedMatches = useMemo(() => {
       return b.played - a.played; // desempata por partidos jugados
     }
     return diff;
-  });
+  });    return { playedRanking, wonRanking, lostRanking, winPercentageRanking };
+}, [statsSummary]);
 
+const availableYears = useMemo(() => {
+    const years = new Set();
+    matches.forEach(match => {
+        if (match.date) {
+            years.add(match.date.split('-')[0]);
+        }
+    });
+    return Array.from(years).sort((a, b) => b - a);
+}, [matches]);
 
-        return { playedRanking, wonRanking, lostRanking, winPercentageRanking };
-    }, [statsSummary]);
+const tileContent = ({ date, view }) => {
+    if (view !== 'month') return null;
+    const dateStr = date.toISOString().split('T')[0];
+    const matchCount = groupedMatches[dateStr]?.matches.length || 0;
+    return matchCount > 0 ? (
+        <p className="text-xs text-blue-600 font-bold">{matchCount} partido{matchCount > 1 ? 's' : ''}</p>
+    ) : null;
+};
 
-    const availableYears = useMemo(() => {
-        const years = new Set();
-        matches.forEach(match => {
-            if (match.date) {
-                years.add(match.date.split('-')[0]);
-            }
-        });
-        return Array.from(years).sort((a, b) => b - a);
-    }, [matches]);
+const handleCalendarChange = (date) => {
+    setCalendarDate(date);
+    setSelectedDate(date.toISOString().split('T')[0]);
+};
 
-    const tileContent = ({ date, view }) => {
-        if (view !== 'month') return null;
-        const dateStr = date.toISOString().split('T')[0];
-        const matchCount = groupedMatches[dateStr]?.matches.length || 0;
-        return matchCount > 0 ? (
-            <p className="text-xs text-blue-600 font-bold">{matchCount} partido{matchCount > 1 ? 's' : ''}</p>
-        ) : null;
-    };
+const renderLogos = () => (
+    <div className="flex justify-center items-center mb-6 space-x-4">
+        <img src="/images/logo1.png" alt="Logo 1" className="h-48 object-contain" />
+        <img src="/images/logo2.png" alt="Logo 2" className="h-48 object-contain" />
+    </div>
+);
 
-    const handleCalendarChange = (date) => {
-        setCalendarDate(date);
-        setSelectedDate(date.toISOString().split('T')[0]);
-    };
-
-    const renderLogos = () => (
-        <div className="flex justify-center items-center mb-6 space-x-4">
-            <img src="/images/logo1.png" alt="Logo 1" className="h-48 object-contain" />
-            <img src="/images/logo2.png" alt="Logo 2" className="h-48 object-contain" />
+if (loading) {
+    return (
+        <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-blue-600 text-white font-inter relative watermark-dsl">
+            <p>Cargando aplicación...</p>
         </div>
     );
-
-    if (loading) {
-        return (
-            <div className="min-h-screen flex items-center justify-center bg-gradient-to-br from-blue-900 to-blue-600 text-white font-inter relative watermark-dsl">
-                <p>Cargando aplicación...</p>
-            </div>
-        );
-    }
+}
 
 const renderPlayerInput = (player, setPlayerState, fieldName, isEditing = false) => {
     return (
@@ -932,7 +938,221 @@ const renderPlayerInput = (player, setPlayerState, fieldName, isEditing = false)
     );
 };
 
-if (showNoCancheroScreen) {
+// Nueva pantalla de login
+if (currentScreen === 'login') {
+  return (
+    <ErrorBoundary>
+      <div className="min-h-screen flex flex-col justify-between bg-gradient-to-br from-blue-900 to-blue-600 p-4 font-inter text-gray-800 relative watermark-dsl">
+        <div className="flex-grow flex items-center justify-center">
+          <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md text-center">
+            {renderLogos()}
+            <h2 className="text-2xl font-semibold text-blue-700 mb-8">Iniciar Sesión</h2>
+            {loginError && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                <strong className="font-bold">Error:</strong>
+                <span className="block sm:inline"> {loginError}</span>
+              </div>
+            )}
+            <form onSubmit={handleLogin}>
+              <div className="mb-6">
+                <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="username">
+                  Usuario
+                </label>
+                <input
+                  type="text"
+                  id="username"
+                  value={loginForm.username}
+                  onChange={(e) => setLoginForm({ ...loginForm, username: e.target.value })}
+                  className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg"
+                  placeholder="Usuario"
+                  required
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="password">
+                  Contraseña
+                </label>
+                <input
+                  type="password"
+                  id="password"
+                  value={loginForm.password}
+                  onChange={(e) => setLoginForm({ ...loginForm, password: e.target.value })}
+                  className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg"
+                  placeholder="Contraseña"
+                  required
+                />
+              </div>
+              <div className="flex flex-col space-y-4">
+                <button
+                  type="submit"
+                  className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
+                >
+                  <LogIn className="mr-3" size={24} /> Ingresar
+                </button>
+                <button
+                  type="button"
+                  onClick={goToRegister}
+                  className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
+                >
+                  <UserPlus className="mr-3" size={24} /> Solicitar Registro
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        <CopyrightFooter />
+      </div>
+    </ErrorBoundary>
+  );
+}
+
+// Nueva pantalla de registro
+if (currentScreen === 'register') {
+  return (
+    <ErrorBoundary>
+      <div className="min-h-screen flex flex-col justify-between bg-gradient-to-br from-blue-900 to-blue-600 p-4 font-inter text-gray-800 relative watermark-dsl">
+        <div className="flex-grow flex items-center justify-center">
+          <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md">
+            {renderLogos()}
+            <h2 className="text-2xl font-semibold text-blue-700 mb-8">Solicitar Registro</h2>
+            {registerError && (
+              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
+                <strong className="font-bold">Error:</strong>
+                <span className="block sm:inline"> {registerError}</span>
+              </div>
+            )}
+            {registerSuccess && (
+              <div className="bg-green-100 border border-green-400 text-green-700 px-4 py-3 rounded relative mb-4" role="alert">
+                <strong className="font-bold">Éxito:</strong>
+                <span className="block sm:inline"> {registerSuccess}</span>
+              </div>
+            )}
+            <form onSubmit={handleRegister}>
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="nombre">
+                  Nombre
+                </label>
+                <input
+                  type="text"
+                  id="nombre"
+                  value={registerForm.nombre}
+                  onChange={(e) => setRegisterForm({ ...registerForm, nombre: e.target.value })}
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="apellido">
+                  Apellido
+                </label>
+                <input
+                  type="text"
+                  id="apellido"
+                  value={registerForm.apellido}
+                  onChange={(e) => setRegisterForm({ ...registerForm, apellido: e.target.value })}
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  required
+                />
+              </div>
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="apodo">
+                  Apodo
+                </label>
+                <input
+                  type="text"
+                  id="apodo"
+                  value={registerForm.apodo}
+                  onChange={(e) => setRegisterForm({ ...registerForm, apodo: e.target.value })}
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  required
+                />
+              </div>
+              
+              {/* Nuevo campo: Email */}
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="email">
+                  Email
+                </label>
+                <input
+                  type="email"
+                  id="email"
+                  value={registerForm.email}
+                  onChange={(e) => setRegisterForm({ ...registerForm, email: e.target.value })}
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  placeholder="tu@email.com"
+                  required
+                />
+              </div>
+              
+              {/* Campo Club modificado a select */}
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="club">
+                  Club
+                </label>
+                <select
+                  id="club"
+                  value={registerForm.club}
+                  onChange={(e) => setRegisterForm({ ...registerForm, club: e.target.value })}
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  required
+                >
+                  <option value="">Selecciona un club</option>
+                  <option value="Defensores de Santos Lugares">Defensores de Santos Lugares</option>
+                  <option value="Otro">Otro</option>
+                </select>
+              </div>
+              
+              <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="password">
+                  Contraseña
+                </label>
+                <input
+                  type="password"
+                  id="password"
+                  value={registerForm.password}
+                  onChange={(e) => setRegisterForm({ ...registerForm, password: e.target.value })}
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  required
+                />
+              </div>
+              <div className="mb-6">
+                <label className="block text-gray-700 text-sm font-bold mb-2" htmlFor="repeatPassword">
+                  Repetir Contraseña
+                </label>
+                <input
+                  type="password"
+                  id="repeatPassword"
+                  value={registerForm.repeatPassword}
+                  onChange={(e) => setRegisterForm({ ...registerForm, repeatPassword: e.target.value })}
+                  className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                  required
+                />
+              </div>
+              <div className="flex flex-col space-y-4">
+                <button
+                  type="submit"
+                  className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105"
+                >
+                  Enviar Solicitud
+                </button>
+                <button
+                  type="button"
+                  onClick={goToLogin}
+                  className="bg-gray-400 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105"
+                >
+                  <ArrowLeft className="mr-2" size={18} /> Volver
+                </button>
+              </div>
+            </form>
+          </div>
+        </div>
+        <CopyrightFooter />
+      </div>
+    </ErrorBoundary>
+  );
+}
+
+if (currentScreen === 'noCancheroScreen') {
     return (
         <ErrorBoundary>
             <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-600 p-4 font-inter text-gray-800 flex flex-col items-center relative watermark-dsl">
@@ -954,12 +1174,10 @@ if (showNoCancheroScreen) {
                     <div className="flex justify-end mb-4">
                         <button
     onClick={() => {
-        window.location.reload();
+        setCurrentScreen('welcome');
     }}
-    className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
->
-    <LogOut className="mr-2" size={20} /> Volver
-</button>
+    className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105">
+<LogOut className="mr-2" size={20} /> Volver</button>
                     </div>
                     <div className="mb-8 p-4 border border-blue-200 rounded-lg bg-blue-50">
                         <h2 className="text-2xl font-semibold text-blue-700 mb-4">Registrar Partido</h2>
@@ -1027,16 +1245,13 @@ if (showNoCancheroScreen) {
                                     setErrorMessage("La aplicación no está lista. Por favor, espera o recarga.");
                                     return;
                                 }
-
                                 const team1Players = [noCancheroMatch.team1Player1.value, noCancheroMatch.team1Player2.value].filter(p => p);
                                 const team2Players = [noCancheroMatch.team2Player1.value, noCancheroMatch.team2Player2.value].filter(p => p);
                                 const { date, loadedBy, scoreTeam1, scoreTeam2 } = noCancheroMatch;
-
                                 if (team1Players.length !== 2 || team2Players.length !== 2 || !date || !scoreTeam1 || !scoreTeam2 || !loadedBy) {
                                     setErrorMessage("Por favor, completa todos los campos obligatorios.");
                                     return;
                                 }
-
                                 if (team1Players[0] === team1Players[1]) {
                                     setErrorMessage("Los jugadores del Equipo 1 no pueden ser el mismo.");
                                     return;
@@ -1045,28 +1260,24 @@ if (showNoCancheroScreen) {
                                     setErrorMessage("Los jugadores del Equipo 2 no pueden ser el mismo.");
                                     return;
                                 }
-
                                 const allPlayers = [...team1Players, ...team2Players];
                                 const uniquePlayers = new Set(allPlayers);
                                 if (uniquePlayers.size !== allPlayers.length) {
                                     setErrorMessage("Un jugador no puede estar en ambos equipos.");
                                     return;
                                 }
-
                                 const score1 = parseInt(scoreTeam1);
                                 const score2 = parseInt(scoreTeam2);
                                 if (isNaN(score1) || score1 < 0 || isNaN(score2) || score2 < 0) {
                                     setErrorMessage("Las puntuaciones deben ser números válidos y no negativos.");
                                     return;
                                 }
-
                                 let winner = 'Empate';
                                 if (score1 > score2) {
                                     winner = `Equipo 1 (${team1Players.join(' y ')})`;
                                 } else if (score2 > score1) {
                                     winner = `Equipo 2 (${team2Players.join(' y ')})`;
                                 }
-
                                 try {
                                     await addDoc(collection(db, `artifacts/${appId}/matches`), {
                                         team1Players,
@@ -1112,7 +1323,7 @@ if (showNoCancheroScreen) {
     );
 }
 
-    if (showStats) {
+    if (currentScreen === 'stats') {
         return (
             <ErrorBoundary>
                 <div className="min-h-screen bg-gradient-to-br from-blue-900 to-blue-600 p-4 font-inter text-gray-800 flex flex-col items-center relative watermark-dsl">
@@ -1121,13 +1332,12 @@ if (showNoCancheroScreen) {
                         <h1 className="text-4xl font-bold text-center text-blue-700 mb-6">Estadísticas de Partidos</h1>
                         <div className="flex justify-between mb-4">
                             <button
-                                onClick={handleExitApp}
+                                onClick={() => setCurrentScreen('welcome')}
                                 className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
                             >
                                 <LogOut className="mr-2" size={20} /> Volver
                             </button>
                         </div>
-
                         {matches.length === 0 ? (
                             <p className="text-center text-gray-500">Cargando datos de partidos...</p>
                         ) : (
@@ -1207,7 +1417,6 @@ if (showNoCancheroScreen) {
                                         </div>
                                     </div>
                                 </div>
-
                                 <h2 className="text-2xl font-semibold text-blue-700 mb-4">Resumen de Estadísticas</h2>
                                 {statsPlayerFilter && statsSummary[statsPlayerFilter] ? (
                                     <div className="bg-blue-100 p-3 rounded-lg shadow-sm border border-blue-200 mb-6">
@@ -1220,7 +1429,6 @@ if (showNoCancheroScreen) {
                                 ) : (
                                     <p className="text-gray-500">Selecciona un jugador para ver su resumen.</p>
                                 )}
-
                                 <h2 className="text-2xl font-semibold text-blue-700 mb-4">Rankings</h2>
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-8">
                                     {[
@@ -1255,7 +1463,6 @@ if (showNoCancheroScreen) {
                                         </div>
                                     ))}
                                 </div>
-
                                 <h2 className="text-2xl font-semibold text-blue-700 mb-4">Lista de Partidos</h2>
 {!showMatchList ? (
     <button
@@ -1322,111 +1529,50 @@ if (showNoCancheroScreen) {
         );
     }
 
-    if (showWelcomeScreen) {
-  return (
-    <ErrorBoundary>
-      <div className="min-h-screen flex flex-col justify-between bg-gradient-to-br from-blue-900 to-blue-600 p-4 font-inter text-gray-800 relative watermark-dsl">
-        <div className="flex-grow flex items-center justify-center">
-          <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md text-center">
-            {renderLogos()}
-            <h2 className="text-2xl font-semibold text-blue-700 mb-8">Registro Diario</h2>
-
-            {welcomeScreenError && (
-              <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
-                <strong className="font-bold">Error:</strong>
-                <span className="block sm:inline"> {welcomeScreenError}</span>
-              </div>
-            )}
-
-            <div className="mb-6">
-              <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="welcome-player-select">
-                ¿Quién Ingresa?
-              </label>
-              <select
-                id="welcome-player-select"
-                value={selectedWelcomePlayer}
-                onChange={(e) => {
-                  setSelectedWelcomePlayer(e.target.value);
-                  setWelcomePin('');
-                  setCustomWelcomePlayerName('');
-                }}
-                className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg"
-              >
-                <option value="">Seleccionar Jugador</option>
-                {welcomePlayerList.map((player, index) => (
-                  <option key={index} value={player}>
-                    {player}
-                  </option>
-                ))}
-              </select>
+// Pantalla de bienvenida (después del login)
+if (currentScreen === 'welcome') {
+    return (
+        <ErrorBoundary>
+            <div className="min-h-screen flex flex-col justify-between bg-gradient-to-br from-blue-900 to-blue-600 p-4 font-inter text-gray-800 relative watermark-dsl">
+                <div className="flex-grow flex items-center justify-center">
+                    <div className="bg-white rounded-xl shadow-2xl p-8 w-full max-w-md text-center">
+                        {renderLogos()}
+                        <h2 className="text-2xl font-semibold text-blue-700 mb-8">Bienvenido, {currentUser}</h2>
+                        <div className="flex flex-col space-y-4">
+                            {/* Solo mostrar para administradores */}
+                            {isAdmin && (
+                                <button
+                                    onClick={goToApp}
+                                    className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
+                                >
+                                    <PlusCircle className="mr-3" size={24} /> Añadir Partido
+                                </button>
+                            )}
+                            <button
+                                onClick={goToStats}
+                                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
+                            >
+                                <BarChart2 className="mr-3" size={24} /> Estadísticas
+                            </button>
+                            <button
+                                onClick={goToNoCanchero}
+                                className="bg-orange-500 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
+                            >
+                                <PlusCircle className="mr-3" size={24} /> Partido sin Canchero
+                            </button>
+                            <button
+                                onClick={() => setCurrentScreen('login')}
+                                className="bg-red-500 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
+                            >
+                                <LogOut className="mr-3" size={24} /> Cerrar Sesión
+                            </button>
+                        </div>
+                    </div>
+                </div>
+                <CopyrightFooter />
             </div>
-            {selectedWelcomePlayer === 'Otro' && (
-              <div className="mb-6">
-                <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="custom-player-name-input">
-                  Nombre del Jugador:
-                </label>
-                <input
-                  type="text"
-                  id="custom-player-name-input"
-                  value={customWelcomePlayerName}
-                  onChange={(e) => setCustomWelcomePlayerName(e.target.value)}
-                  className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg text-center"
-                  placeholder="Escribe el nombre"
-                />
-              </div>
-            )}
-            {selectedWelcomePlayer && (
-              <div className="mb-6">
-                <label className="block text-gray-700 text-lg font-bold mb-3" htmlFor="welcome-pin-input">
-                  Ingresa tu PIN (4 dígitos):
-                </label>
-                <input
-                    type="password"
-                    id="welcome-pin-input"
-                    value={welcomePin}
-                    onChange={(e) => setWelcomePin(e.target.value)}
-                    onKeyDown={(e) => {
-                      if (e.key === 'Enter') {
-                        handleWelcomeEnter();
-                      }
-                    }}
-                    maxLength="4"
-                    className="shadow appearance-none border rounded w-full py-3 px-4 text-gray-700 leading-tight focus:outline-none focus:shadow-outline text-lg text-center tracking-widest"
-                    placeholder="****"
-                  />
-                {selectedWelcomePlayer === 'Otro' && (
-                  <p className="text-xs text-gray-500 mt-1">
-                    Si selecciona "Otro" ingresa el código 1111
-                  </p>
-                )}
-              </div>
-            )}
-            <div className="flex flex-col space-y-4">
-              <button
-                onClick={handleWelcomeEnter}
-                className="bg-green-500 hover:bg-green-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
-              >
-                <LogIn className="mr-3" size={24} /> Ingresar
-              </button>
-              <button
-                onClick={handleShowStats}
-                className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
-              >
-                <BarChart2 className="mr-3" size={24} /> Ver Estadísticas
-              </button>
-              <button
-                      onClick={() => setShowNoCancheroScreen(true)}
-                      className="bg-orange-500 hover:bg-orange-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
-                  >
-                      <PlusCircle className="mr-3" size={24} /> Partido sin Canchero
-                  </button>
-            </div>
-          </div>
-        </div>
-        <CopyrightFooter />
-      </div>
-    </ErrorBoundary>
-  );
+        </ErrorBoundary>
+    );
 }
 
     return (
@@ -1435,33 +1581,43 @@ if (showNoCancheroScreen) {
                 {renderLogos()}
                 <div className="bg-white rounded-xl shadow-2xl p-6 w-full max-w-4xl mb-8">
                     <h1 className="text-4xl font-bold text-center text-blue-700 mb-6">Control de Partidos de Pelota Paleta</h1>
+                {/* Mensaje para no administradores */}
+                {!isAdmin && (
+                    <div className="mb-6 p-4 bg-yellow-100 border border-yellow-400 text-yellow-700 rounded-lg">
+                        <p className="text-center">
+                            <strong>Modo de solo lectura:</strong> No tienes permisos para añadir partidos. 
+                            Contacta a un administrador si necesitas registrar nuevos partidos.
+                        </p>
+                    </div>
+                )}
                     {userId && (
                         <p className="text-sm text-center text-gray-500 mb-4">
                             ID de Usuario (Anónimo): <span className="font-mono bg-gray-100 p-1 rounded">{userId}</span>
                         </p>
                     )}
-                    {loadedByPlayer && (
+                    {currentUser && (
                         <p className="text-sm text-center text-gray-500 mb-4">
-                            Ingresado como: <span className="font-mono bg-gray-100 p-1 rounded">{loadedByPlayer}</span>
+                            Usuario: <span className="font-mono bg-gray-100 p-1 rounded">{currentUser}</span>
+                            {isAdmin && <span className="ml-2 px-2 py-1 bg-red-500 text-white text-xs rounded-full">ADMIN</span>}
                         </p>
                     )}
-
                     {errorMessage && (
                         <div className="bg-red-100 border border-red-400 text-red-700 px-4 py-3 rounded relative mb-4" role="alert">
                             <strong className="font-bold">Error:</strong>
                             <span className="block sm:inline"> {errorMessage}</span>
                         </div>
                     )}
-
                     <div className="flex justify-end mb-4">
                         <button
-                            onClick={handleExitApp}
+                            onClick={() => setCurrentScreen('welcome')}
                             className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
                         >
-                            <LogOut className="mr-2" size={20} /> Salir
+                            <LogOut className="mr-2" size={20} /> Volver
                         </button>
                     </div>
 
+                {/* Solo mostrar formulario para administradores */}
+                {isAdmin && (
                     <div className="mb-8 p-4 border border-blue-200 rounded-lg bg-blue-50">
                         <h2 className="text-2xl font-semibold text-blue-700 mb-4">Registrar Nuevo Partido</h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
@@ -1525,7 +1681,7 @@ if (showNoCancheroScreen) {
                             <PlusCircle className="mr-2" size={20} /> Agregar Partido
                         </button>
                     </div>
-
+                    )}
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-2xl font-semibold text-blue-700">Resumen de Partidos por Fecha</h2>
                         <button
@@ -1535,7 +1691,6 @@ if (showNoCancheroScreen) {
                             <Download className="mr-2" size={20} /> Descargar Historial
                         </button>
                     </div>
-
                     <div className="mb-8">
                         <Calendar
                             onChange={handleCalendarChange}
@@ -1553,7 +1708,6 @@ if (showNoCancheroScreen) {
                             className="w-full border border-gray-200 rounded-lg shadow-sm bg-white p-4"
                         />
                     </div>
-
                     {selectedDate && groupedMatches[selectedDate] ? (
                         <div className="bg-white rounded-xl shadow-lg p-6 w-full max-w-4xl mb-8 border border-blue-200">
                             <h3 className="text-3xl font-bold text-blue-800 mb-4">Fecha: {selectedDate} ({groupedMatches[selectedDate].matches.length} partidos)</h3>
@@ -1679,30 +1833,32 @@ if (showNoCancheroScreen) {
                     <div className="flex justify-end space-x-2">
                         {match.pendingConfirmation ? (
                             <>
-                                <button
-                                    onClick={async () => {
-                                        try {
-                                            await updateDoc(doc(db, `artifacts/${appId}/matches`, match.id), {
-                                                pendingConfirmation: false,
-                                                editHistory: [
-                                                    ...(match.editHistory || []),
-                                                    {
-                                                        editedBy: loadedByPlayer,
-                                                        editedTimestamp: Timestamp.now(),
-                                                        changes: ['Partido confirmado']
-                                                    }
-                                                ]
-                                            });
-                                            setErrorMessage('');
-                                        } catch (e) {
-                                            console.error("Error confirming match: ", e);
-                                            setErrorMessage("Error al confirmar el partido. Intenta de nuevo.");
-                                        }
-                                    }}
-                                    className="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded-full text-sm focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                                >
-                                    <Save className="mr-1" size={16} /> Confirmar
-                                </button>
+                                {isAdmin && (
+                                    <button
+                                        onClick={async () => {
+                                            try {
+                                                await updateDoc(doc(db, `artifacts/${appId}/matches`, match.id), {
+                                                    pendingConfirmation: false,
+                                                    editHistory: [
+                                                        ...(match.editHistory || []),
+                                                        {
+                                                            editedBy: currentUser,
+                                                            editedTimestamp: Timestamp.now(),
+                                                            changes: ['Partido confirmado']
+                                                        }
+                                                    ]
+                                                });
+                                                setErrorMessage('');
+                                            } catch (e) {
+                                                console.error("Error confirming match: ", e);
+                                                setErrorMessage("Error al confirmar el partido. Intenta de nuevo.");
+                                            }
+                                        }}
+                                        className="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded-full text-sm focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
+                                    >
+                                        <Save className="mr-1" size={16} /> Confirmar
+                                    </button>
+                                )}
                                 <button
                                     onClick={() => confirmDeleteMatch(match)}
                                     className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded-full text-sm focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
@@ -1733,7 +1889,6 @@ if (showNoCancheroScreen) {
     </div>
 ))}
                             </div>
-
                             <h4 className="text-xl font-semibold text-blue-700 mb-3">Resumen de Jugadores:</h4>
                             {Object.keys(groupedMatches[selectedDate].summary).length === 0 ? (
                                 <p className="text-gray-500">No hay datos de resumen para esta fecha.</p>
@@ -1780,7 +1935,6 @@ if (showNoCancheroScreen) {
                         <p className="text-center text-gray-500">Selecciona una fecha en el calendario para ver los partidos.</p>
                     )}
                 </div>
-
                 {showConfirmModal && (
                     <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
                         <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
