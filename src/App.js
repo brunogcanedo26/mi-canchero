@@ -34,6 +34,254 @@ const auth = getAuth(app);
 // Global variables for Canvas environment
 const appId = process.env.REACT_APP_APP_ID || 'default-app-id';
 
+// Mapeo de jugadores a sus imágenes
+const playerImages = {
+  "Ale Perrone": "/images/players/anonimo.png",
+  "Alexis": "/images/players/anonimo.png",
+  "Ariel": "/images/players/anonimo.png",
+  "Bruno": "/images/players/bruno4.png",
+  "Condor": "/images/players/anonimo.png",
+  "Coreano": "/images/players/anonimo.png",
+  "Daniel": "/images/players/anonimo.png",
+  "Diego Balazo": "/images/players/anonimo.png",
+  "Elvis": "/images/players/anonimo.png",
+  "Ezequiel": "/images/players/anonimo.png",
+  "Facundo": "/images/players/anonimo.png",
+  "Federico": "/images/players/anonimo.png",
+  "Fito": "/images/players/anonimo.png",
+  "Franco": "/images/players/anonimo.png",
+  "Gaby Mecanico": "/images/players/gaby_mecanico.png",
+  "German": "/images/players/german.png",
+  "Guillermo": "/images/players/guillermo.png",
+  "Hector Musico": "/images/players/hector_musico.png",
+  "Hugo": "/images/players/hugo.png",
+  "Ivan": "/images/players/ivan.png",
+  "Javier": "/images/players/javier.png",
+  "Joni": "/images/players/joni.png",
+  "Julian Olivieri": "/images/players/julian_olivieri.png",
+  "Julian Rugna": "/images/players/julian_rugna.png",
+  "Lautaro": "/images/players/lautaro.png",
+  "Leandro": "/images/players/leandro.png",
+  "Lucy": "/images/players/lucy.png",
+  "Luigi": "/images/players/luigi.png",
+  "Luis": "/images/players/luis.png",
+  "Marcelo": "/images/players/marcelo.png",
+  "Marcelo Zurdo": "/images/players/marcelo_zurdo.png",
+  "Mariano": "/images/players/mariano.png",
+  "Mario Arriola": "/images/players/mario_arriola.png",
+  "Martin": "/images/players/martin.png",
+  "Matias": "/images/players/matias.png",
+  "Maxi": "/images/players/maxi.png",
+  "Mono": "/images/players/mono.png",
+  "Nacho": "/images/players/nacho.png",
+  "Nico Ciudad": "/images/players/nico_ciudad.png",
+  "Raul": "/images/players/raul.png",
+  "Roberto": "/images/players/roberto.png",
+  "Rodrigo": "/images/players/rodrigo.png",
+  "Ruben": "/images/players/ruben.png",
+  "Sergio": "/images/players/sergio.png",
+  "Sosa": "/images/players/sosa.png",
+  "Tano": "/images/players/tano.png",
+  "Tito": "/images/players/tito.png",
+  "Vasco": "/images/players/vasco.png",
+  "Zurdo Diaz": "/images/players/zurdo_diaz.png",
+  "Zurdo Ruben": "/images/players/zurdo_ruben.png"
+};
+
+// Función para obtener la imagen de un jugador
+const getPlayerImage = (playerName) => {
+  return playerImages[playerName] || "/images/players/default.png";
+};
+
+// Componente para la vista reduida de un partido
+const MatchCardReduced = ({ match, onClick }) => {
+  const team1Players = match.team1Players || [];
+  const team2Players = match.team2Players || [];
+  const scoreTeam1 = match.scoreTeam1 !== '' ? match.scoreTeam1 : '?';
+  const scoreTeam2 = match.scoreTeam2 !== '' ? match.scoreTeam2 : '?';
+  
+  return (
+    <div 
+      className="bg-white rounded-lg shadow-md p-4 mb-3 cursor-pointer hover:shadow-lg transition-shadow duration-200"
+      onClick={onClick}
+    >
+      <div className="flex justify-between items-center">
+        {/* Equipo 1 */}
+        <div className="text-left w-2/5">
+          <div className="font-medium">{team1Players[0] || 'Jugador 1'}</div>
+          <div className="font-medium">{team1Players[1] || 'Jugador 2'}</div>
+        </div>
+        
+        {/* Resultado */}
+        <div className="text-center w-1/5">
+          <div className="text-2xl font-bold text-blue-600">
+            {scoreTeam1} - {scoreTeam2}
+          </div>
+        </div>
+        
+        {/* Equipo 2 */}
+        <div className="text-right w-2/5">
+          <div className="font-medium">{team2Players[0] || 'Jugador 1'}</div>
+          <div className="font-medium">{team2Players[1] || 'Jugador 2'}</div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
+// Componente para la vista ampliada de un partido
+const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
+  const team1Players = match.team1Players || [];
+  const team2Players = match.team2Players || [];
+  const scoreTeam1 = match.scoreTeam1 !== '' ? match.scoreTeam1 : '?';
+  const scoreTeam2 = match.scoreTeam2 !== '' ? match.scoreTeam2 : '?';
+  
+  return (
+    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
+      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+        <div className="p-6">
+          <div className="flex justify-between items-center mb-6">
+            <h3 className="text-2xl font-bold text-blue-700">Detalles del Partido</h3>
+            <button 
+              onClick={onClose}
+              className="text-gray-500 hover:text-gray-700 text-2xl"
+            >
+              &times;
+            </button>
+          </div>
+          
+          {/* Información del partido */}
+          <div className="mb-8">
+            <div className="flex justify-between items-center mb-6">
+              {/* Equipo 1 con imágenes */}
+              <div className="text-left w-2/5">
+                <div className="flex items-center mb-3">
+                  <img 
+                    src={getPlayerImage(team1Players[0])} 
+                    alt={team1Players[0]} 
+                    className="w-12 h-12 rounded-full object-cover mr-3"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/images/players/default.png";
+                    }}
+                  />
+                  <div className="font-medium">{team1Players[0] || 'Jugador 1'}</div>
+                </div>
+                <div className="flex items-center">
+                  <img 
+                    src={getPlayerImage(team1Players[1])} 
+                    alt={team1Players[1]} 
+                    className="w-12 h-12 rounded-full object-cover mr-3"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/images/players/default.png";
+                    }}
+                  />
+                  <div className="font-medium">{team1Players[1] || 'Jugador 2'}</div>
+                </div>
+              </div>
+              
+              {/* Resultado */}
+              <div className="text-center w-1/5">
+                <div className="text-3xl font-bold text-blue-600">
+                  {scoreTeam1} - {scoreTeam2}
+                </div>
+                <div className="text-sm text-gray-500 mt-1">
+                  {match.date || 'Fecha no especificada'}
+                </div>
+              </div>
+              
+              {/* Equipo 2 con imágenes */}
+              <div className="text-right w-2/5">
+                <div className="flex items-center justify-end mb-3">
+                  <div className="font-medium">{team2Players[0] || 'Jugador 1'}</div>
+                  <img 
+                    src={getPlayerImage(team2Players[0])} 
+                    alt={team2Players[0]} 
+                    className="w-12 h-12 rounded-full object-cover ml-3"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/images/players/default.png";
+                    }}
+                  />
+                </div>
+                <div className="flex items-center justify-end">
+                  <div className="font-medium">{team2Players[1] || 'Jugador 2'}</div>
+                  <img 
+                    src={getPlayerImage(team2Players[1])} 
+                    alt={team2Players[1]} 
+                    className="w-12 h-12 rounded-full object-cover ml-3"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/images/players/default.png";
+                    }}
+                  />
+                </div>
+              </div>
+            </div>
+            
+            {/* Ganador y comentario */}
+            <div className="text-center mb-4">
+              <p className="text-lg font-semibold text-green-700">
+                Ganador: {match.winner || 'No determinado'}
+              </p>
+              {match.comment && (
+                <p className="text-gray-600 mt-2">Comentario: {match.comment}</p>
+              )}
+            </div>
+          </div>
+          
+          {/* Historial de ediciones */}
+          <div className="mb-6">
+            <h4 className="text-lg font-semibold text-blue-700 mb-3">Historial de Cambios</h4>
+            <div className="bg-gray-50 p-4 rounded-lg">
+              <p className="text-sm text-gray-600 mb-2">
+                <span className="font-semibold">Creado por:</span> {match.loadedBy || 'Desconocido'} 
+                <span className="font-normal"> el {match.timestamp ? new Date(match.timestamp.toDate()).toLocaleString() : 'N/A'}</span>
+              </p>
+              
+              {match.editHistory && match.editHistory.length > 0 && (
+                <div className="mt-3">
+                  <p className="text-sm font-semibold text-gray-700 mb-2">Ediciones:</p>
+                  <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                    {match.editHistory.map((edit, idx) => (
+                      <li key={idx}>
+                        <span className="font-semibold">{edit.editedBy}</span> 
+                        <span className="font-normal"> el {new Date(edit.editedTimestamp.toDate()).toLocaleString()}:</span>
+                        <span className="font-normal"> {edit.changes.join(', ')}</span>
+                      </li>
+                    ))}
+                  </ul>
+                </div>
+              )}
+            </div>
+          </div>
+          
+          {/* Botones de acción */}
+          <div className="flex justify-end space-x-3">
+            {isAdmin && (
+              <>
+                <button
+                  onClick={() => onEdit(match)}
+                  className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center"
+                >
+                  <Edit className="mr-2" size={16} /> Editar
+                </button>
+                <button
+                  onClick={() => onDelete(match)}
+                  className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center"
+                >
+                  <Trash2 className="mr-2" size={16} /> Eliminar
+                </button>
+              </>
+            )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+};
+
 // Predefined list of players for match entry, sorted alphabetically
 const playerList = [
  "Ale Perrone", "Alexis", "Ariel", "Bruno", "Condor", "Coreano", "Daniel", "Diego Balazo", "Elvis", 
@@ -147,6 +395,7 @@ function App() {
      date: new Date().toLocaleDateString('en-CA'),
  });
  const [confirmationMessage, setConfirmationMessage] = useState('');
+ const [expandedMatch, setExpandedMatch] = useState(null);
 
  // Funciones para el nuevo sistema de login
  const handleLogin = (e) => {
@@ -900,42 +1149,58 @@ if (loading) {
 }
 
 const renderPlayerInput = (player, setPlayerState, fieldName, isEditing = false) => {
-    return (
-        <div className="mb-2">
-            <select
-                value={player.value}
-                onChange={(e) => {
-                    const value = e.target.value;
-                    const isCustom = value === 'Otro';
-                    setPlayerState(prev => ({
-                        ...prev,
-                        [fieldName]: { value: isCustom ? '' : value, isCustom }
-                    }));
-                }}
-                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-            >
-                <option value="">Selecciona un jugador</option>
-                {playerList.map((p, index) => (
-                    <option key={index} value={p}>{p}</option>
-                ))}
-                <option value="Otro">Otro</option>
-            </select>
-            {player.isCustom && (
-                <input
-                    type="text"
-                    value={player.value}
-                    onChange={(e) => {
-                        setPlayerState(prev => ({
-                            ...prev,
-                            [fieldName]: { ...prev[fieldName], value: e.target.value }
-                        }));
-                    }}
-                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mt-2"
-                    placeholder="Escribe el nombre del jugador"
-                />
-            )}
+  return (
+    <div className="mb-2">
+      <select
+        value={player.value}
+        onChange={(e) => {
+          const value = e.target.value;
+          const isCustom = value === 'Otro';
+          setPlayerState(prev => ({
+            ...prev,
+            [fieldName]: { value: isCustom ? '' : value, isCustom }
+          }));
+        }}
+        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+      >
+        <option value="">Selecciona un jugador</option>
+        {playerList.map((p, index) => (
+          <option key={index} value={p}>{p}</option>
+        ))}
+        <option value="Otro">Otro</option>
+      </select>
+      {player.isCustom && (
+        <input
+          type="text"
+          value={player.value}
+          onChange={(e) => {
+            setPlayerState(prev => ({
+              ...prev,
+              [fieldName]: { ...prev[fieldName], value: e.target.value }
+            }));
+          }}
+          className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline mt-2"
+          placeholder="Escribe el nombre del jugador"
+        />
+      )}
+      
+      {/* Vista previa del jugador seleccionado con imagen */}
+      {player.value && !player.isCustom && (
+        <div className="flex items-center mt-2 p-2 bg-gray-50 rounded">
+          <img 
+            src={getPlayerImage(player.value)} 
+            alt={player.value} 
+            className="w-8 h-8 rounded-full object-cover mr-2"
+            onError={(e) => {
+              e.target.onerror = null;
+              e.target.src = "/images/players/default.png";
+            }}
+          />
+          <span className="text-sm font-medium">{player.value}</span>
         </div>
-    );
+      )}
+    </div>
+  );
 };
 
 // Nueva pantalla de login
@@ -1713,207 +1978,63 @@ if (currentScreen === 'welcome') {
                             <h3 className="text-3xl font-bold text-blue-800 mb-4">Fecha: {selectedDate} ({groupedMatches[selectedDate].matches.length} partidos)</h3>
                             <h4 className="text-xl font-semibold text-blue-700 mb-3">Partidos del Día:</h4>
                             <div className="grid grid-cols-1 gap-3 mb-6">
-                                {groupedMatches[selectedDate].matches.map((match) => (
-    <div
-        key={match.id}
-        className={`p-3 rounded-lg shadow-sm border ${match.isDeleted ? 'bg-gray-200 border-red-300 text-red-700' : match.pendingConfirmation ? 'bg-pink-100 border-pink-300 text-pink-700' : 'bg-gray-50 border-gray-100'}`}
-    >
-        {editingMatchId === match.id ? (
-            <div>
-                <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 1:</label>
-                        {renderPlayerInput(editedMatch.team1Player1, setEditedMatch, 'team1Player1', true)}
-                        {renderPlayerInput(editedMatch.team1Player2, setEditedMatch, 'team1Player2', true)}
-                    </div>
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 2:</label>
-                        {renderPlayerInput(editedMatch.team2Player1, setEditedMatch, 'team2Player1', true)}
-                        {renderPlayerInput(editedMatch.team2Player2, setEditedMatch, 'team2Player2', true)}
-                    </div>
-                </div>
-                <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Eq. 1 (Opcional):</label>
-                        <input
-                            type="number"
-                            name="scoreTeam1"
-                            value={editedMatch.scoreTeam1}
-                            onChange={handleEditedMatchOtherInputChange}
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Eq. 2 (Opcional):</label>
-                        <input
-                            type="number"
-                            name="scoreTeam2"
-                            value={editedMatch.scoreTeam2}
-                            onChange={handleEditedMatchOtherInputChange}
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                        />
-                    </div>
-                    <div>
-                        <label className="block text-gray-700 text-sm font-bold mb-2">Fecha:</label>
-                        <input
-                            type="date"
-                            name="date"
-                            value={editedMatch.date}
-                            onChange={handleEditedMatchOtherInputChange}
-                            className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                        />
-                    </div>
-                </div>
-                <div className="mb-4">
-                    <label className="block text-gray-700 text-sm font-bold mb-2">Comentario (Opcional):</label>
-                    <textarea
-                        name="comment"
-                        value={editedMatch.comment}
-                        onChange={handleEditedMatchOtherInputChange}
-                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                        placeholder="Escribe un comentario sobre el partido"
-                    />
-                </div>
-                <div className="flex justify-end space-x-2">
-                    <button
-                        onClick={saveEditedMatch}
-                        className="bg-blue-500 hover:bg-blue-700 text-white font-bold py-2 px-3 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                    >
-                        <Save className="mr-1" size={18} /> Guardar
-                    </button>
-                    <button
-                        onClick={cancelEditing}
-                        className="bg-gray-400 hover:bg-gray-600 text-white font-bold py-2 px-3 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                    >
-                        <XCircle className="mr-1" size={18} /> Cancelar
-                    </button>
-                </div>
-            </div>
-        ) : (
-            <div>
-                <p className="text-md font-semibold mb-1">
-                    {(match.team1Players || []).join(' y ') || 'N/A'} vs {(match.team2Players || []).join(' y ') || 'N/A'}
-                    {match.isDeleted && (
-                        <span className="ml-2 font-bold text-red-700">Dado de Baja</span>
-                    )}
-                    {match.pendingConfirmation && (
-                        <span className="ml-2 font-bold text-pink-700">A Confirmar</span>
-                    )}
-                </p>
-                <p className="text-lg font-bold text-blue-600 mb-1">
-                    Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuación no registrada'}
-                </p>
-                <p className="text-sm text-green-700 font-semibold mb-2">
-                    Ganador: {match.winner || 'No determinado'}
-                </p>
-                {match.comment && (
-                    <p className="text-sm text-gray-600 mb-2">Comentario: {match.comment}</p>
-                )}
-                <p className="text-xs text-gray-500 mt-1">
-                    Cargado por: <span className="font-semibold">{match.loadedBy || 'Desconocido'}</span> el <span className="font-semibold">{match.timestamp ? new Date(match.timestamp.toDate()).toLocaleString() : 'N/A'}</span>
-                </p>
-                {match.isDeleted && (
-                    <p className="text-xs text-red-500 mt-1">
-                        Eliminado por: <span className="font-semibold">{match.deletedBy}</span> el <span className="font-semibold">{match.deletedTimestamp ? new Date(match.deletedTimestamp.toDate()).toLocaleString() : 'N/A'}</span>
-                    </p>
-                )}
-                {match.editHistory && match.editHistory.length > 0 && (
-                    <div className="text-xs text-gray-500 mt-1">
-                        Historial de Ediciones:
-                        <ul className="list-disc list-inside ml-2">
-                            {match.editHistory.map((edit, idx) => (
-                                <li key={idx}>
-                                    <span className="font-semibold">{edit.editedBy}</span> el <span className="font-semibold">{edit.editedTimestamp ? new Date(edit.editedTimestamp.toDate()).toLocaleString() : 'N/A'}</span>: {edit.changes.join(', ')}
-                                </li>
-                            ))}
-                        </ul>
-                    </div>
-                )}
-                {!match.isDeleted && (
-                    <div className="flex justify-end space-x-2">
-                        {match.pendingConfirmation ? (
-                            <>
-                                {isAdmin && (
-                                    <button
-                                        onClick={async () => {
-                                            try {
-                                                await updateDoc(doc(db, `artifacts/${appId}/matches`, match.id), {
-                                                    pendingConfirmation: false,
-                                                    editHistory: [
-                                                        ...(match.editHistory || []),
-                                                        {
-                                                            editedBy: currentUser,
-                                                            editedTimestamp: Timestamp.now(),
-                                                            changes: ['Partido confirmado']
-                                                        }
-                                                    ]
-                                                });
-                                                setErrorMessage('');
-                                            } catch (e) {
-                                                console.error("Error confirming match: ", e);
-                                                setErrorMessage("Error al confirmar el partido. Intenta de nuevo.");
-                                            }
-                                        }}
-                                        className="bg-green-500 hover:bg-green-700 text-white font-bold py-1 px-2 rounded-full text-sm focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                                    >
-                                        <Save className="mr-1" size={16} /> Confirmar
-                                    </button>
-                                )}
-                                <button
-                                    onClick={() => confirmDeleteMatch(match)}
-                                    className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded-full text-sm focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                                >
-                                    <Trash2 className="mr-1" size={16} /> Eliminar
-                                </button>
-                            </>
-                        ) : (
-                            <>
-                                <button
-                                    onClick={() => startEditing(match)}
-                                    className="bg-yellow-500 hover:bg-yellow-700 text-white font-bold py-1 px-2 rounded-full text-sm focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                                >
-                                    <Edit className="mr-1" size={16} /> Editar
-                                </button>
-                                <button
-                                    onClick={() => confirmDeleteMatch(match)}
-                                    className="bg-red-500 hover:bg-red-700 text-white font-bold py-1 px-2 rounded-full text-sm focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
-                                >
-                                    <Trash2 className="mr-1" size={16} /> Eliminar
-                                </button>
-                            </>
-                        )}
-                    </div>
-                )}
-            </div>
-        )}
+  {groupedMatches[selectedDate].matches.map((match) => (
+    <div key={match.id}>
+      {/* Vista reducida del partido */}
+      <MatchCardReduced 
+        match={match} 
+        onClick={() => setExpandedMatch(match)} 
+      />
     </div>
-))}
-                            </div>
+  ))}
+</div>
+
+{/* Vista ampliada del partido seleccionado */}
+{expandedMatch && (
+  <MatchCardExpanded 
+    match={expandedMatch}
+    onClose={() => setExpandedMatch(null)}
+    onEdit={startEditing}
+    onDelete={confirmDeleteMatch}
+    isAdmin={isAdmin}
+  />
+)}
                             <h4 className="text-xl font-semibold text-blue-700 mb-3">Resumen de Jugadores:</h4>
                             {Object.keys(groupedMatches[selectedDate].summary).length === 0 ? (
                                 <p className="text-gray-500">No hay datos de resumen para esta fecha.</p>
                             ) : (
                                 <div className="grid grid-cols-1 md:grid-cols-2 gap-3">
                                     {Object.entries(groupedMatches[selectedDate].summary).map(([player, stats]) => (
-                                        <div key={player} className="bg-blue-100 p-3 rounded-lg shadow-sm border border-blue-200">
-                                            <div className="flex justify-between items-center mb-2">
-                                                <div>
-                                                    <p className="font-bold text-blue-800">{player}</p>
-                                                    <p className="text-gray-700">Jugados: {stats.played}</p>
-                                                    <p className="text-green-700">Ganados: {stats.won}</p>
-                                                    <p className="text-red-700">Perdidos: {stats.lost}</p>
-                                                </div>
-                                                <div className="flex items-center">
-                                                    <label htmlFor={`paid-${selectedDate}-${player}`} className="mr-2 text-gray-700">Pagó:</label>
-                                                    <input
-                                                        type="checkbox"
-                                                        id={`paid-${selectedDate}-${player}`}
-                                                        checked={stats.paid || false}
-                                                        onChange={(e) => handlePaidChange(selectedDate, player, e.target.checked)}
-                                                        className="form-checkbox h-5 w-5 text-green-600 rounded focus:ring-green-500"
-                                                    />
-                                                </div>
-                                            </div>
+  <div key={player} className="bg-blue-100 p-3 rounded-lg shadow-sm border border-blue-200">
+    <div className="flex justify-between items-center mb-2">
+      <div className="flex items-center">
+        <img 
+          src={getPlayerImage(player)} 
+          alt={player} 
+          className="w-10 h-10 rounded-full object-cover mr-3"
+          onError={(e) => {
+            e.target.onerror = null;
+            e.target.src = "/images/players/default.png";
+          }}
+        />
+        <div>
+          <p className="font-bold text-blue-800">{player}</p>
+          <p className="text-gray-700">Jugados: {stats.played}</p>
+          <p className="text-green-700">Ganados: {stats.won}</p>
+          <p className="text-red-700">Perdidos: {stats.lost}</p>
+        </div>
+      </div>
+      <div className="flex items-center">
+        <label htmlFor={`paid-${selectedDate}-${player}`} className="mr-2 text-gray-700">Pagó:</label>
+        <input
+          type="checkbox"
+          id={`paid-${selectedDate}-${player}`}
+          checked={stats.paid || false}
+          onChange={(e) => handlePaidChange(selectedDate, player, e.target.checked)}
+          className="form-checkbox h-5 w-5 text-green-600 rounded focus:ring-green-500"
+        />
+      </div>
+    </div>
                                             {stats.paymentHistory && stats.paymentHistory.length > 0 && (
                                                 <div className="text-xs text-gray-500 mt-1">
                                                     Historial de Pagos:
