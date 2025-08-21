@@ -102,27 +102,27 @@ const MatchCardReduced = ({ match, onClick }) => {
   
   return (
     <div 
-      className="bg-white rounded-lg shadow-md p-4 mb-3 cursor-pointer hover:shadow-lg transition-shadow duration-200"
+      className="bg-white rounded-lg shadow-md p-3 mb-3 cursor-pointer hover:shadow-lg transition-shadow duration-200"
       onClick={onClick}
     >
       <div className="flex justify-between items-center">
         {/* Equipo 1 */}
-        <div className="text-left w-2/5">
-          <div className="font-medium">{team1Players[0] || 'Jugador 1'}</div>
-          <div className="font-medium">{team1Players[1] || 'Jugador 2'}</div>
+        <div className="text-left w-2/5 pr-2">
+          <div className="font-medium text-sm truncate">{team1Players[0] || 'Jugador 1'}</div>
+          <div className="font-medium text-sm truncate">{team1Players[1] || 'Jugador 2'}</div>
         </div>
         
         {/* Resultado */}
-        <div className="text-center w-1/5">
-          <div className="text-2xl font-bold text-blue-600">
+        <div className="text-center w-1/5 px-1">
+          <div className="text-lg md:text-xl font-bold text-blue-600">
             {scoreTeam1} - {scoreTeam2}
           </div>
         </div>
         
         {/* Equipo 2 */}
-        <div className="text-right w-2/5">
-          <div className="font-medium">{team2Players[0] || 'Jugador 1'}</div>
-          <div className="font-medium">{team2Players[1] || 'Jugador 2'}</div>
+        <div className="text-right w-2/5 pl-2">
+          <div className="font-medium text-sm truncate">{team2Players[0] || 'Jugador 1'}</div>
+          <div className="font-medium text-sm truncate">{team2Players[1] || 'Jugador 2'}</div>
         </div>
       </div>
     </div>
@@ -443,7 +443,7 @@ const handleRegister = async (e) => {
       process.env.REACT_APP_EMAILJS_USER_ID
     );
     
-    setRegisterSuccess('Solicitud enviada correctamente. Pronto recibirás una respuesta.');
+    setRegisterSuccess('Solicitud enviada a los administradores, en menos de 24hs se te generará un usuario y contraseña. Se responde al email indicado en la solicitud. Gracias!.');
     setRegisterForm({
       nombre: '',
       apellido: '',
@@ -793,9 +793,10 @@ pendingConfirmation: false});
     };
 
     const confirmDeleteMatch = (match) => {
-        setMatchToDelete(match);
-        setShowConfirmModal(true);
-    };
+    setMatchToDelete(match);
+    setShowConfirmModal(true);
+ setExpandedMatch(null);
+};
 
     const deleteMatch = async () => {
         if (!userId || !matchToDelete) return;
@@ -818,11 +819,13 @@ pendingConfirmation: false});
         }
     };
 
-    const startEditing = (match) => {
+const startEditing = (match) => {
     if (!userId) {
         setErrorMessage("La aplicación no está lista. Por favor, espera o recarga.");
         return;
     }
+    
+    // Preparamos el objeto editedMatch con todos los datos del partido
     const transformedEditedMatch = {
         ...match,
         team1Player1: { value: match.team1Players[0] || '', isCustom: !isPredefinedPlayer(match.team1Players[0]) },
@@ -830,9 +833,15 @@ pendingConfirmation: false});
         team2Player1: { value: match.team2Players[0] || '', isCustom: !isPredefinedPlayer(match.team2Players[0]) },
         team2Player2: { value: match.team2Players[1] || '', isCustom: !isPredefinedPlayer(match.team2Players[1]) },
         comment: match.comment || '',
+        date: match.date || new Date().toLocaleDateString('en-CA'),
+        scoreTeam1: match.scoreTeam1 !== '' ? match.scoreTeam1 : '',
+        scoreTeam2: match.scoreTeam2 !== '' ? match.scoreTeam2 : '',
     };
+    
     setEditingMatchId(match.id);
     setEditedMatch(transformedEditedMatch);
+    setExpandedMatch(null); // Cerrar vista ampliada
+    setCurrentScreen('app'); // Ir a la pantalla de añadir partido
 };
 
     const cancelEditing = () => {
@@ -1447,17 +1456,17 @@ if (currentScreen === 'noCancheroScreen') {
                     <div className="mb-8 p-4 border border-blue-200 rounded-lg bg-blue-50">
                         <h2 className="text-2xl font-semibold text-blue-700 mb-4">Registrar Partido</h2>
                         <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 1:</label>
-                                {renderPlayerInput(noCancheroMatch.team1Player1, setNoCancheroMatch, 'team1Player1')}
-                                {renderPlayerInput(noCancheroMatch.team1Player2, setNoCancheroMatch, 'team1Player2')}
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 2:</label>
-                                {renderPlayerInput(noCancheroMatch.team2Player1, setNoCancheroMatch, 'team2Player1')}
-                                {renderPlayerInput(noCancheroMatch.team2Player2, setNoCancheroMatch, 'team2Player2')}
-                            </div>
-                        </div>
+    <div>
+        <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 1:</label>
+        {renderPlayerInput(noCancheroMatch.team1Player1, setNoCancheroMatch, 'team1Player1')}
+        {renderPlayerInput(noCancheroMatch.team1Player2, setNoCancheroMatch, 'team1Player2')}
+    </div>
+    <div>
+        <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 2:</label>
+        {renderPlayerInput(noCancheroMatch.team2Player1, setNoCancheroMatch, 'team2Player1')}
+        {renderPlayerInput(noCancheroMatch.team2Player2, setNoCancheroMatch, 'team2Player2')}
+    </div>
+</div>
                         <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                             <div>
                                 <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Equipo 1:</label>
@@ -1611,20 +1620,36 @@ if (currentScreen === 'noCancheroScreen') {
                                     <h2 className="text-2xl font-semibold text-blue-700 mb-4">Filtros</h2>
                                     <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
                                         <div>
-                                            <label className="block text-gray-700 text-sm font-bold mb-2">Jugador:</label>
-                                            <select
-                                                value={statsPlayerFilter}
-                                                onChange={(e) => setStatsPlayerFilter(e.target.value)}
-                                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                            >
-                                                <option value="">Todos los jugadores</option>
-                                                {playerList.map((player, index) => (
-                                                    <option key={index} value={player}>
-                                                        {player}
-                                                    </option>
-                                                ))}
-                                            </select>
-                                        </div>
+    <label className="block text-gray-700 text-sm font-bold mb-2">Jugador:</label>
+    <select
+        value={statsPlayerFilter}
+        onChange={(e) => setStatsPlayerFilter(e.target.value)}
+        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+    >
+        <option value="">Todos los jugadores</option>
+        {playerList.map((player, index) => (
+            <option key={index} value={player}>
+                {player}
+            </option>
+        ))}
+    </select>
+    
+    {/* Vista previa del jugador seleccionado con imagen */}
+    {statsPlayerFilter && (
+        <div className="flex items-center mt-2 p-2 bg-gray-50 rounded">
+            <img 
+                src={getPlayerImage(statsPlayerFilter)} 
+                alt={statsPlayerFilter} 
+                className="w-8 h-8 rounded-full object-cover mr-2"
+                onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "/images/players/default.png";
+                }}
+            />
+            <span className="text-sm font-medium">{statsPlayerFilter}</span>
+        </div>
+    )}
+</div>
                                         <div>
                                             <label className="block text-gray-700 text-sm font-bold mb-2">Año:</label>
                                             <select
@@ -1743,34 +1768,12 @@ if (currentScreen === 'noCancheroScreen') {
         ) : (
             <div className="grid grid-cols-1 gap-3">
                 {filteredMatches.slice(0, visibleMatchesCount).map((match, index) => (
-                    <div key={match.id} className="bg-gray-50 p-3 rounded-lg shadow-sm border border-gray-100">
-                        <p className="text-md font-semibold text-blue-800 mb-1">
-                            #{index + 1} - {match.date}: {(match.team1Players || []).join(' y ') || 'N/A'} vs {(match.team2Players || []).join(' y ') || 'N/A'}
-                        </p>
-                        <p className="text-lg font-bold text-blue-600 mb-1">
-                            Resultado: {match.scoreTeam1 !== '' && match.scoreTeam2 !== '' ? `${match.scoreTeam1} - ${match.scoreTeam2}` : 'Puntuación no registrada'}
-                        </p>
-                        <p className="text-sm text-green-700 font-semibold mb-2">
-                            Ganador: {match.winner || 'No determinado'}
-                        </p>
-                        {match.comment && (
-                            <p className="text-sm text-gray-600 mb-2">Comentario: {match.comment}</p>
-                        )}
-                        <p className="text-xs text-gray-500 mt-1">
-                            Cargado por: <span className="font-semibold">{match.loadedBy || 'Desconocido'}</span> el <span className="font-semibold">{match.timestamp ? new Date(match.timestamp.toDate()).toLocaleString() : 'N/A'}</span>
-                        </p>
-                        {match.editHistory && match.editHistory.length > 0 && (
-                            <div className="text-xs text-gray-500 mt-1">
-                                Historial de Ediciones:
-                                <ul className="list-disc list-inside ml-2">
-                                    {match.editHistory.map((edit, idx) => (
-                                        <li key={idx}>
-                                            <span className="font-semibold">{edit.editedBy}</span> el <span className="font-semibold">{edit.editedTimestamp ? new Date(edit.editedTimestamp.toDate()).toLocaleString() : 'N/A'}</span>: {edit.changes.join(', ')}
-                                        </li>
-                                    ))}
-                                </ul>
-                            </div>
-                        )}
+                    <div key={match.id}>
+                        {/* Vista reducida del partido */}
+                        <MatchCardReduced 
+                            match={match} 
+                            onClick={() => setExpandedMatch(match)} 
+                        />
                     </div>
                 ))}
             </div>
@@ -1784,6 +1787,17 @@ if (currentScreen === 'noCancheroScreen') {
             </button>
         )}
     </>
+)}
+
+{/* Vista ampliada del partido seleccionado */}
+{expandedMatch && (
+    <MatchCardExpanded 
+        match={expandedMatch}
+        onClose={() => setExpandedMatch(null)}
+        onEdit={null}  // No permitimos editar en estadísticas
+        onDelete={null} // No permitimos eliminar en estadísticas
+        isAdmin={false} // No mostramos botones en estadísticas
+    />
 )}
                             </>
                         )}
@@ -1826,11 +1840,14 @@ if (currentScreen === 'welcome') {
                                 <PlusCircle className="mr-3" size={24} /> Partido sin Canchero
                             </button>
                             <button
-                                onClick={() => setCurrentScreen('login')}
-                                className="bg-red-500 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
-                            >
-                                <LogOut className="mr-3" size={24} /> Cerrar Sesión
-                            </button>
+    onClick={() => {
+        setCurrentScreen('login');
+        window.location.reload(); // Agregar esta línea
+    }}
+    className="bg-red-500 hover:bg-red-700 text-white font-bold py-3 px-6 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105 text-xl"
+>
+    <LogOut className="mr-3" size={24} /> Cerrar Sesión
+</button>
                         </div>
                     </div>
                 </div>
@@ -1884,68 +1901,146 @@ if (currentScreen === 'welcome') {
                 {/* Solo mostrar formulario para administradores */}
                 {isAdmin && (
                     <div className="mb-8 p-4 border border-blue-200 rounded-lg bg-blue-50">
-                        <h2 className="text-2xl font-semibold text-blue-700 mb-4">Registrar Nuevo Partido</h2>
-                        <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
-                            <div>
-                                <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 1:</label>
-                                {renderPlayerInput(newMatch.team1Player1, setNewMatch, 'team1Player1')}
-                                {renderPlayerInput(newMatch.team1Player2, setNewMatch, 'team1Player2')}
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 2:</label>
-                                {renderPlayerInput(newMatch.team2Player1, setNewMatch, 'team2Player1')}
-                                {renderPlayerInput(newMatch.team2Player2, setNewMatch, 'team2Player2')}
-                            </div>
-                        </div>
-                        <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
-                            <div>
-                                <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Equipo 1 (Opcional):</label>
-                                <input
-                                    type="number"
-                                    name="scoreTeam1"
-                                    value={newMatch.scoreTeam1}
-                                    onChange={handleNewMatchOtherInputChange}
-                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Equipo 2 (Opcional):</label>
-                                <input
-                                    type="number"
-                                    name="scoreTeam2"
-                                    value={newMatch.scoreTeam2}
-                                    onChange={handleNewMatchOtherInputChange}
-                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                />
-                            </div>
-                            <div>
-                                <label className="block text-gray-700 text-sm font-bold mb-2">Fecha:</label>
-                                <input
-                                    type="date"
-                                    name="date"
-                                    value={newMatch.date}
-                                    onChange={handleNewMatchOtherInputChange}
-                                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                />
-                            </div>
-                        </div>
-                        <div className="mb-4">
-                            <label className="block text-gray-700 text-sm font-bold mb-2">Comentario (Opcional):</label>
-                            <textarea
-                                name="comment"
-                                value={newMatch.comment}
-                                onChange={handleNewMatchOtherInputChange}
-                                className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
-                                placeholder="Escribe un comentario sobre el partido"
-                            />
-                        </div>
-                        <button
-                            onClick={addMatch}
-                            className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105"
-                        >
-                            <PlusCircle className="mr-2" size={20} /> Agregar Partido
-                        </button>
-                    </div>
+    {editingMatchId ? (
+        // Formulario de edición
+        <>
+            <h2 className="text-2xl font-semibold text-blue-700 mb-4">Editar Partido</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 1:</label>
+                    {renderPlayerInput(editedMatch.team1Player1, setEditedMatch, 'team1Player1', true)}
+                    {renderPlayerInput(editedMatch.team1Player2, setEditedMatch, 'team1Player2', true)}
+                </div>
+                <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 2:</label>
+                    {renderPlayerInput(editedMatch.team2Player1, setEditedMatch, 'team2Player1', true)}
+                    {renderPlayerInput(editedMatch.team2Player2, setEditedMatch, 'team2Player2', true)}
+                </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Equipo 1:</label>
+                    <input
+                        type="number"
+                        name="scoreTeam1"
+                        value={editedMatch.scoreTeam1}
+                        onChange={handleEditedMatchOtherInputChange}
+                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    />
+                </div>
+                <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Equipo 2:</label>
+                    <input
+                        type="number"
+                        name="scoreTeam2"
+                        value={editedMatch.scoreTeam2}
+                        onChange={handleEditedMatchOtherInputChange}
+                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    />
+                </div>
+                <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">Fecha:</label>
+                    <input
+                        type="date"
+                        name="date"
+                        value={editedMatch.date}
+                        onChange={handleEditedMatchOtherInputChange}
+                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    />
+                </div>
+            </div>
+            <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2">Comentario:</label>
+                <textarea
+                    name="comment"
+                    value={editedMatch.comment}
+                    onChange={handleEditedMatchOtherInputChange}
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    placeholder="Escribe un comentario sobre el partido"
+                />
+            </div>
+            <div className="flex justify-end space-x-3">
+                <button
+                    onClick={saveEditedMatch}
+                    className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
+                >
+                    <Save className="mr-2" size={16} /> Guardar Cambios
+                </button>
+                <button
+                    onClick={cancelEditing}
+                    className="bg-gray-400 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center transform transition-transform duration-200 hover:scale-105"
+                >
+                    <XCircle className="mr-2" size={16} /> Cancelar
+                </button>
+            </div>
+        </>
+    ) : (
+        // Formulario de nuevo partido
+        <>
+            <h2 className="text-2xl font-semibold text-blue-700 mb-4">Registrar Nuevo Partido</h2>
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4 mb-4">
+                <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 1:</label>
+                    {renderPlayerInput(newMatch.team1Player1, setNewMatch, 'team1Player1')}
+                    {renderPlayerInput(newMatch.team1Player2, setNewMatch, 'team1Player2')}
+                </div>
+                <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">Equipo 2:</label>
+                    {renderPlayerInput(newMatch.team2Player1, setNewMatch, 'team2Player1')}
+                    {renderPlayerInput(newMatch.team2Player2, setNewMatch, 'team2Player2')}
+                </div>
+            </div>
+            <div className="grid grid-cols-1 md:grid-cols-3 gap-4 mb-4">
+                <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Equipo 1 (Opcional):</label>
+                    <input
+                        type="number"
+                        name="scoreTeam1"
+                        value={newMatch.scoreTeam1}
+                        onChange={handleNewMatchOtherInputChange}
+                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    />
+                </div>
+                <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">Puntuación Equipo 2 (Opcional):</label>
+                    <input
+                        type="number"
+                        name="scoreTeam2"
+                        value={newMatch.scoreTeam2}
+                        onChange={handleNewMatchOtherInputChange}
+                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    />
+                </div>
+                <div>
+                    <label className="block text-gray-700 text-sm font-bold mb-2">Fecha:</label>
+                    <input
+                        type="date"
+                        name="date"
+                        value={newMatch.date}
+                        onChange={handleNewMatchOtherInputChange}
+                        className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    />
+                </div>
+            </div>
+            <div className="mb-4">
+                <label className="block text-gray-700 text-sm font-bold mb-2">Comentario (Opcional):</label>
+                <textarea
+                    name="comment"
+                    value={newMatch.comment}
+                    onChange={handleNewMatchOtherInputChange}
+                    className="shadow appearance-none border rounded w-full py-2 px-3 text-gray-700 leading-tight focus:outline-none focus:shadow-outline"
+                    placeholder="Escribe un comentario sobre el partido"
+                />
+            </div>
+            <button
+                onClick={addMatch}
+                className="bg-green-500 hover:bg-green-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center justify-center w-full transform transition-transform duration-200 hover:scale-105"
+            >
+                <PlusCircle className="mr-2" size={20} /> Agregar Partido
+            </button>
+        </>
+    )}
+</div>
                     )}
                     <div className="flex justify-between items-center mb-4">
                         <h2 className="text-2xl font-semibold text-blue-700">Resumen de Partidos por Fecha</h2>
@@ -1999,6 +2094,30 @@ if (currentScreen === 'welcome') {
     isAdmin={isAdmin}
   />
 )}
+ {/* Modal de confirmación va aquí */}
+    {showConfirmModal && (
+        <div className="bg-white rounded-lg shadow-xl p-6 mb-6 border-2 border-red-200">
+            <h3 className="text-xl font-bold text-gray-800 mb-4">Confirmar Eliminación</h3>
+            <p className="text-gray-600 mb-6">
+                ¿Estás seguro de que quieres eliminar el partido
+                {(matchToDelete.team1Players || []).join(' y ') || 'N/A'} vs {(matchToDelete.team2Players || []).join(' y ') || 'N/A'}?
+            </p>
+            <div className="flex justify-center space-x-4">
+                <button
+                    onClick={deleteMatch}
+                    className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transform transition-transform duration-200 hover:scale-105"
+                >
+                    Eliminar
+                </button>
+                <button
+                    onClick={() => setShowConfirmModal(false)}
+                    className="bg-gray-400 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transform transition-transform duration-200 hover:scale-105"
+                >
+                    Cancelar
+                </button>
+            </div>
+        </div>
+    )}
                             <h4 className="text-xl font-semibold text-blue-700 mb-3">Resumen de Jugadores:</h4>
                             {Object.keys(groupedMatches[selectedDate].summary).length === 0 ? (
                                 <p className="text-gray-500">No hay datos de resumen para esta fecha.</p>
@@ -2057,30 +2176,28 @@ if (currentScreen === 'welcome') {
                     )}
                 </div>
                 {showConfirmModal && (
-                    <div className="fixed inset-0 bg-gray-600 bg-opacity-75 flex items-center justify-center z-50">
-                        <div className="bg-white p-6 rounded-lg shadow-xl max-w-sm w-full text-center">
-                            <h3 className="text-xl font-bold text-gray-800 mb-4">Confirmar Eliminación</h3>
-                            <p className="text-gray-600 mb-6">
-                                ¿Estás seguro de que quieres eliminar el partido
-                                {(matchToDelete.team1Players || []).join(' y ') || 'N/A'} vs {(matchToDelete.team2Players || []).join(' y ') || 'N/A'}?
-                            </p>
-                            <div className="flex justify-center space-x-4">
-                                <button
-                                    onClick={deleteMatch}
-                                    className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transform transition-transform duration-200 hover:scale-105"
-                                >
-                                    Eliminar
-                                </button>
-                                <button
-                                    onClick={() => setShowConfirmModal(false)}
-                                    className="bg-gray-400 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transform transition-transform duration-200 hover:scale-105"
-                                >
-                                    Cancelar
-                                </button>
-                            </div>
-                        </div>
-                    </div>
-                )}
+    <div className="bg-white rounded-lg shadow-xl p-6 mb-6 border-2 border-red-200">
+        <h3 className="text-xl font-bold text-gray-800 mb-4">Confirmar Eliminación</h3>
+        <p className="text-gray-600 mb-6">
+            ¿Estás seguro de que quieres eliminar el partido
+            {(matchToDelete.team1Players || []).join(' y ') || 'N/A'} vs {(matchToDelete.team2Players || []).join(' y ') || 'N/A'}?
+        </p>
+        <div className="flex justify-center space-x-4">
+            <button
+                onClick={deleteMatch}
+                className="bg-red-500 hover:bg-red-700 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transform transition-transform duration-200 hover:scale-105"
+            >
+                Eliminar
+            </button>
+            <button
+                onClick={() => setShowConfirmModal(false)}
+                className="bg-gray-400 hover:bg-gray-600 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline transform transition-transform duration-200 hover:scale-105"
+            >
+                Cancelar
+            </button>
+        </div>
+    </div>
+)}
 <CopyrightFooter />
             </div>
         </ErrorBoundary>
