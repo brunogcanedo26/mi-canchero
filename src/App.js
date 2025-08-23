@@ -150,10 +150,80 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
             </button>
           </div>
           
-          {/* Información del partido - Nuevo diseño */}
-          <div className="flex flex-col md:flex-row justify-between items-center mb-8">
+          {/* Versión móvil - Diseño apilado */}
+          <div className="md:hidden">
+            {/* Equipo 1 con resultado alineado */}
+            <div className="mb-6">
+              <div className="flex items-center mb-3">
+                <img 
+                  src={getPlayerImage(team1Players[0])} 
+                  alt={team1Players[0]} 
+                  className="w-12 h-12 rounded-full object-cover mr-3"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "/images/players/default.png";
+                  }}
+                />
+                <span className="font-medium">{team1Players[0] || 'Jugador 1'}</span>
+                <div className="ml-auto text-2xl font-bold text-blue-600">
+                  {scoreTeam1}
+                </div>
+              </div>
+              <div className="flex items-center mb-4">
+                <img 
+                  src={getPlayerImage(team1Players[1])} 
+                  alt={team1Players[1]} 
+                  className="w-12 h-12 rounded-full object-cover mr-3"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "/images/players/default.png";
+                  }}
+                />
+                <span className="font-medium">{team1Players[1] || 'Jugador 2'}</span>
+              </div>
+            </div>
+            
+            {/* VS */}
+            <div className="text-center my-4">
+              <div className="text-xl font-bold text-gray-600">VS</div>
+            </div>
+            
+            {/* Equipo 2 con resultado alineado */}
+            <div className="mt-4">
+              <div className="flex items-center mb-3">
+                <img 
+                  src={getPlayerImage(team2Players[0])} 
+                  alt={team2Players[0]} 
+                  className="w-12 h-12 rounded-full object-cover mr-3"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "/images/players/default.png";
+                  }}
+                />
+                <span className="font-medium">{team2Players[0] || 'Jugador 1'}</span>
+                <div className="ml-auto text-2xl font-bold text-blue-600">
+                  {scoreTeam2}
+                </div>
+              </div>
+              <div className="flex items-center">
+                <img 
+                  src={getPlayerImage(team2Players[1])} 
+                  alt={team2Players[1]} 
+                  className="w-12 h-12 rounded-full object-cover mr-3"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "/images/players/default.png";
+                  }}
+                />
+                <span className="font-medium">{team2Players[1] || 'Jugador 2'}</span>
+              </div>
+            </div>
+          </div>
+          
+          {/* Versión desktop - Diseño lado a lado */}
+          <div className="hidden md:flex flex-row justify-between items-center mb-8">
             {/* Lado izquierdo - Jugadores con fotos */}
-            <div className="w-full md:w-1/2 pr-0 md:pr-4 mb-6 md:mb-0">
+            <div className="w-1/2 pr-4">
               {/* Equipo 1 */}
               <div className="mb-6">
                 <div className="flex items-center mb-3">
@@ -183,12 +253,12 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
               </div>
               
               {/* VS */}
-              <div className="text-center my-4 md:my-0 md:py-4">
+              <div className="text-center py-4">
                 <div className="text-xl font-bold text-gray-600">VS</div>
               </div>
               
               {/* Equipo 2 */}
-              <div className="mt-4 md:mt-0">
+              <div className="mt-4">
                 <div className="flex items-center mb-3">
                   <img 
                     src={getPlayerImage(team2Players[0])} 
@@ -217,7 +287,7 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
             </div>
             
             {/* Lado derecho - Resultados */}
-            <div className="w-full md:w-1/2 pl-0 md:pl-4 border-l-0 md:border-l border-gray-200">
+            <div className="w-1/2 pl-4 border-l border-gray-200 flex flex-col justify-center">
               {/* Resultado Equipo 1 */}
               <div className="text-center mb-6">
                 <div className="text-3xl font-bold text-blue-600">
@@ -227,16 +297,20 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
               </div>
               
               {/* Separador */}
-              <div className="text-center my-2">
+              <div className="text-center mb-6">
+              <div className="my-2">
                 <div className="text-xl font-bold text-gray-400">-</div>
+              </div>
               </div>
               
               {/* Resultado Equipo 2 */}
-              <div className="text-center mt-2">
+              <div className="text-center mb-6">
+              <div className="mt-2">
                 <div className="text-3xl font-bold text-blue-600">
                   {scoreTeam2}
                 </div>
                 <div className="text-sm text-gray-500">Equipo 2</div>
+              </div>
               </div>
             </div>
           </div>
