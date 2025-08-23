@@ -138,7 +138,7 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
   
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-2xl w-full max-h-[90vh] overflow-y-auto">
+      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-2xl font-bold text-blue-700">Detalles del Partido</h3>
@@ -150,11 +150,12 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
             </button>
           </div>
           
-          {/* Información del partido */}
-          <div className="mb-8">
-            <div className="flex justify-between items-center mb-6">
-              {/* Equipo 1 con imágenes */}
-              <div className="text-left w-2/5">
+          {/* Información del partido - Nuevo diseño */}
+          <div className="flex flex-col md:flex-row justify-between items-center mb-8">
+            {/* Lado izquierdo - Jugadores con fotos */}
+            <div className="w-full md:w-1/2 pr-0 md:pr-4 mb-6 md:mb-0">
+              {/* Equipo 1 */}
+              <div className="mb-6">
                 <div className="flex items-center mb-3">
                   <img 
                     src={getPlayerImage(team1Players[0])} 
@@ -165,7 +166,7 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
                       e.target.src = "/images/players/default.png";
                     }}
                   />
-                  <div className="font-medium">{team1Players[0] || 'Jugador 1'}</div>
+                  <span className="font-medium">{team1Players[0] || 'Jugador 1'}</span>
                 </div>
                 <div className="flex items-center">
                   <img 
@@ -177,58 +178,77 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
                       e.target.src = "/images/players/default.png";
                     }}
                   />
-                  <div className="font-medium">{team1Players[1] || 'Jugador 2'}</div>
+                  <span className="font-medium">{team1Players[1] || 'Jugador 2'}</span>
                 </div>
               </div>
               
-              {/* Resultado */}
-              <div className="text-center w-1/5">
-                <div className="text-3xl font-bold text-blue-600">
-                  {scoreTeam1} - {scoreTeam2}
-                </div>
-                <div className="text-sm text-gray-500 mt-1">
-                  {match.date || 'Fecha no especificada'}
-                </div>
+              {/* VS */}
+              <div className="text-center my-4 md:my-0 md:py-4">
+                <div className="text-xl font-bold text-gray-600">VS</div>
               </div>
               
-              {/* Equipo 2 con imágenes */}
-              <div className="text-right w-2/5">
-                <div className="flex items-center justify-end mb-3">
-                  <div className="font-medium">{team2Players[0] || 'Jugador 1'}</div>
+              {/* Equipo 2 */}
+              <div className="mt-4 md:mt-0">
+                <div className="flex items-center mb-3">
                   <img 
                     src={getPlayerImage(team2Players[0])} 
                     alt={team2Players[0]} 
-                    className="w-12 h-12 rounded-full object-cover ml-3"
+                    className="w-12 h-12 rounded-full object-cover mr-3"
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = "/images/players/default.png";
                     }}
                   />
+                  <span className="font-medium">{team2Players[0] || 'Jugador 1'}</span>
                 </div>
-                <div className="flex items-center justify-end">
-                  <div className="font-medium">{team2Players[1] || 'Jugador 2'}</div>
+                <div className="flex items-center">
                   <img 
                     src={getPlayerImage(team2Players[1])} 
                     alt={team2Players[1]} 
-                    className="w-12 h-12 rounded-full object-cover ml-3"
+                    className="w-12 h-12 rounded-full object-cover mr-3"
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = "/images/players/default.png";
                     }}
                   />
+                  <span className="font-medium">{team2Players[1] || 'Jugador 2'}</span>
                 </div>
               </div>
             </div>
             
-            {/* Ganador y comentario */}
-            <div className="text-center mb-4">
-              <p className="text-lg font-semibold text-green-700">
-                Ganador: {match.winner || 'No determinado'}
-              </p>
-              {match.comment && (
-                <p className="text-gray-600 mt-2">Comentario: {match.comment}</p>
-              )}
+            {/* Lado derecho - Resultados */}
+            <div className="w-full md:w-1/2 pl-0 md:pl-4 border-l-0 md:border-l border-gray-200">
+              {/* Resultado Equipo 1 */}
+              <div className="text-center mb-6">
+                <div className="text-3xl font-bold text-blue-600">
+                  {scoreTeam1}
+                </div>
+                <div className="text-sm text-gray-500">Equipo 1</div>
+              </div>
+              
+              {/* Separador */}
+              <div className="text-center my-2">
+                <div className="text-xl font-bold text-gray-400">-</div>
+              </div>
+              
+              {/* Resultado Equipo 2 */}
+              <div className="text-center mt-2">
+                <div className="text-3xl font-bold text-blue-600">
+                  {scoreTeam2}
+                </div>
+                <div className="text-sm text-gray-500">Equipo 2</div>
+              </div>
             </div>
+          </div>
+          
+          {/* Información adicional centrada */}
+          <div className="text-center mb-6">
+            <p className="text-lg font-semibold text-green-700">
+              Ganador: {match.winner || 'No determinado'}
+            </p>
+            <p className="text-gray-600 mt-1">
+              Fecha: {match.date || 'Fecha no especificada'}
+            </p>
           </div>
           
           {/* Historial de ediciones */}
