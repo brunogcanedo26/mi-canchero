@@ -152,34 +152,43 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
           
           {/* Versión móvil - Diseño apilado */}
           <div className="md:hidden">
-            {/* Equipo 1 con resultado alineado */}
+            {/* Equipo 1 */}
             <div className="mb-6">
-              <div className="flex items-center mb-3">
-                <img 
-                  src={getPlayerImage(team1Players[0])} 
-                  alt={team1Players[0]} 
-                  className="w-12 h-12 rounded-full object-cover mr-3"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "/images/players/default.png";
-                  }}
-                />
-                <span className="font-medium">{team1Players[0] || 'Jugador 1'}</span>
-                <div className="ml-auto text-2xl font-bold text-blue-600">
-                  {scoreTeam1}
+              <div className="flex justify-between items-center mb-3">
+                {/* Jugador 1 - Izquierda */}
+                <div className="flex items-center">
+                  <img 
+                    src={getPlayerImage(team1Players[0])} 
+                    alt={team1Players[0]} 
+                    className="w-12 h-12 rounded-full object-cover mr-2"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/images/players/default.png";
+                    }}
+                  />
+                  <span className="font-medium text-sm">{team1Players[0] || 'Jugador 1'}</span>
                 </div>
-              </div>
-              <div className="flex items-center mb-4">
-                <img 
-                  src={getPlayerImage(team1Players[1])} 
-                  alt={team1Players[1]} 
-                  className="w-12 h-12 rounded-full object-cover mr-3"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "/images/players/default.png";
-                  }}
-                />
-                <span className="font-medium">{team1Players[1] || 'Jugador 2'}</span>
+                
+                {/* Resultado - Centro */}
+                <div className="text-center">
+                  <div className="text-xl font-bold text-blue-600">
+                    {scoreTeam1}
+                  </div>
+                </div>
+                
+                {/* Jugador 2 - Derecha */}
+                <div className="flex items-center">
+                  <span className="font-medium text-sm">{team1Players[1] || 'Jugador 2'}</span>
+                  <img 
+                    src={getPlayerImage(team1Players[1])} 
+                    alt={team1Players[1]} 
+                    className="w-12 h-12 rounded-full object-cover ml-2"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/images/players/default.png";
+                    }}
+                  />
+                </div>
               </div>
             </div>
             
@@ -188,171 +197,169 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
               <div className="text-xl font-bold text-gray-600">VS</div>
             </div>
             
-            {/* Equipo 2 con resultado alineado */}
+            {/* Equipo 2 */}
             <div className="mt-4">
-              <div className="flex items-center mb-3">
-                <img 
-                  src={getPlayerImage(team2Players[0])} 
-                  alt={team2Players[0]} 
-                  className="w-12 h-12 rounded-full object-cover mr-3"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "/images/players/default.png";
-                  }}
-                />
-                <span className="font-medium">{team2Players[0] || 'Jugador 1'}</span>
-                <div className="ml-auto text-2xl font-bold text-blue-600">
-                  {scoreTeam2}
+              <div className="flex justify-between items-center mb-3">
+                {/* Jugador 1 - Izquierda */}
+                <div className="flex items-center">
+                  <img 
+                    src={getPlayerImage(team2Players[0])} 
+                    alt={team2Players[0]} 
+                    className="w-12 h-12 rounded-full object-cover mr-2"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/images/players/default.png";
+                    }}
+                  />
+                  <span className="font-medium text-sm">{team2Players[0] || 'Jugador 1'}</span>
                 </div>
-              </div>
-              <div className="flex items-center">
-                <img 
-                  src={getPlayerImage(team2Players[1])} 
-                  alt={team2Players[1]} 
-                  className="w-12 h-12 rounded-full object-cover mr-3"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "/images/players/default.png";
-                  }}
-                />
-                <span className="font-medium">{team2Players[1] || 'Jugador 2'}</span>
+                
+                {/* Resultado - Centro */}
+                <div className="text-center">
+                  <div className="text-xl font-bold text-blue-600">
+                    {scoreTeam2}
+                  </div>
+                </div>
+                
+                {/* Jugador 2 - Derecha */}
+                <div className="flex items-center">
+                  <span className="font-medium text-sm">{team2Players[1] || 'Jugador 2'}</span>
+                  <img 
+                    src={getPlayerImage(team2Players[1])} 
+                    alt={team2Players[1]} 
+                    className="w-12 h-12 rounded-full object-cover ml-2"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/images/players/default.png";
+                    }}
+                  />
+                </div>
               </div>
             </div>
           </div>
           
           {/* Versión desktop - Diseño lado a lado */}
-          <div className="hidden md:flex flex-row justify-between items-center mb-8">
-            {/* Lado izquierdo - Jugadores con fotos */}
-            <div className="w-1/2 pr-4">
-              {/* Equipo 1 */}
-              <div className="mb-6">
-                <div className="flex items-center mb-3">
-                  <img 
-                    src={getPlayerImage(team1Players[0])} 
-                    alt={team1Players[0]} 
-                    className="w-12 h-12 rounded-full object-cover mr-3"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = "/images/players/default.png";
-                    }}
-                  />
-                  <span className="font-medium">{team1Players[0] || 'Jugador 1'}</span>
-                </div>
-                <div className="flex items-center">
-                  <img 
-                    src={getPlayerImage(team1Players[1])} 
-                    alt={team1Players[1]} 
-                    className="w-12 h-12 rounded-full object-cover mr-3"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = "/images/players/default.png";
-                    }}
-                  />
-                  <span className="font-medium">{team1Players[1] || 'Jugador 2'}</span>
-                </div>
+          <div className="hidden md:flex flex-col items-center mb-8">
+            {/* Equipo 1 */}
+            <div className="flex justify-between items-center w-full mb-6">
+              {/* Jugador 1 - Izquierda */}
+              <div className="flex items-center w-2/5">
+                <img 
+                  src={getPlayerImage(team1Players[0])} 
+                  alt={team1Players[0]} 
+                  className="w-16 h-16 rounded-full object-cover mr-4"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "/images/players/default.png";
+                  }}
+                />
+                <span className="font-medium text-lg">{team1Players[0] || 'Jugador 1'}</span>
               </div>
               
-              {/* VS */}
-              <div className="text-center py-4">
-                <div className="text-xl font-bold text-gray-600">VS</div>
-              </div>
-              
-              {/* Equipo 2 */}
-              <div className="mt-4">
-                <div className="flex items-center mb-3">
-                  <img 
-                    src={getPlayerImage(team2Players[0])} 
-                    alt={team2Players[0]} 
-                    className="w-12 h-12 rounded-full object-cover mr-3"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = "/images/players/default.png";
-                    }}
-                  />
-                  <span className="font-medium">{team2Players[0] || 'Jugador 1'}</span>
-                </div>
-                <div className="flex items-center">
-                  <img 
-                    src={getPlayerImage(team2Players[1])} 
-                    alt={team2Players[1]} 
-                    className="w-12 h-12 rounded-full object-cover mr-3"
-                    onError={(e) => {
-                      e.target.onerror = null;
-                      e.target.src = "/images/players/default.png";
-                    }}
-                  />
-                  <span className="font-medium">{team2Players[1] || 'Jugador 2'}</span>
-                </div>
-              </div>
-            </div>
-            
-            {/* Lado derecho - Resultados */}
-            <div className="w-1/2 pl-4 border-l border-gray-200 flex flex-col justify-center">
-              {/* Resultado Equipo 1 */}
-              <div className="text-center mb-6">
+              {/* Resultado - Centro */}
+              <div className="text-center w-1/5">
                 <div className="text-3xl font-bold text-blue-600">
                   {scoreTeam1}
                 </div>
-                <div className="text-sm text-gray-500">Equipo 1</div>
               </div>
               
-              {/* Separador */}
-              <div className="text-center mb-6">
-              <div className="my-2">
-                <div className="text-xl font-bold text-gray-400">-</div>
+              {/* Jugador 2 - Derecha */}
+              <div className="flex items-center justify-end w-2/5">
+                <span className="font-medium text-lg">{team1Players[1] || 'Jugador 2'}</span>
+                <img 
+                  src={getPlayerImage(team1Players[1])} 
+                  alt={team1Players[1]} 
+                  className="w-16 h-16 rounded-full object-cover ml-4"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "/images/players/default.png";
+                  }}
+                />
               </div>
+            </div>
+            
+            {/* VS */}
+            <div className="text-center my-4">
+              <div className="text-2xl font-bold text-gray-600">VS</div>
+            </div>
+            
+            {/* Equipo 2 */}
+            <div className="flex justify-between items-center w-full mt-4">
+              {/* Jugador 1 - Izquierda */}
+              <div className="flex items-center w-2/5">
+                <img 
+                  src={getPlayerImage(team2Players[0])} 
+                  alt={team2Players[0]} 
+                  className="w-16 h-16 rounded-full object-cover mr-4"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "/images/players/default.png";
+                  }}
+                />
+                <span className="font-medium text-lg">{team2Players[0] || 'Jugador 1'}</span>
               </div>
               
-              {/* Resultado Equipo 2 */}
-              <div className="text-center mb-6">
-              <div className="mt-2">
+              {/* Resultado - Centro */}
+              <div className="text-center w-1/5">
                 <div className="text-3xl font-bold text-blue-600">
                   {scoreTeam2}
                 </div>
-                <div className="text-sm text-gray-500">Equipo 2</div>
               </div>
+              
+              {/* Jugador 2 - Derecha */}
+              <div className="flex items-center justify-end w-2/5">
+                <span className="font-medium text-lg">{team2Players[1] || 'Jugador 2'}</span>
+                <img 
+                  src={getPlayerImage(team2Players[1])} 
+                  alt={team2Players[1]} 
+                  className="w-16 h-16 rounded-full object-cover ml-4"
+                  onError={(e) => {
+                    e.target.onerror = null;
+                    e.target.src = "/images/players/default.png";
+                  }}
+                />
               </div>
             </div>
           </div>
           
           {/* Información adicional centrada */}
-          <div className="text-center mb-6">
-            <p className="text-lg font-semibold text-green-700">
+          <div className="text-center mt-8">
+            <p className="text-lg md:text-xl font-semibold text-green-700 mb-2">
               Ganador: {match.winner || 'No determinado'}
             </p>
-            <p className="text-gray-600 mt-1">
+            <p className="text-gray-600 mb-4">
               Fecha: {match.date || 'Fecha no especificada'}
             </p>
-          </div>
-          
-          {/* Historial de ediciones */}
-          <div className="mb-6">
-            <h4 className="text-lg font-semibold text-blue-700 mb-3">Historial de Cambios</h4>
-            <div className="bg-gray-50 p-4 rounded-lg">
-              <p className="text-sm text-gray-600 mb-2">
-                <span className="font-semibold">Creado por:</span> {match.loadedBy || 'Desconocido'} 
-                <span className="font-normal"> el {match.timestamp ? new Date(match.timestamp.toDate()).toLocaleString() : 'N/A'}</span>
-              </p>
-              
-              {match.editHistory && match.editHistory.length > 0 && (
-                <div className="mt-3">
-                  <p className="text-sm font-semibold text-gray-700 mb-2">Ediciones:</p>
-                  <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
-                    {match.editHistory.map((edit, idx) => (
-                      <li key={idx}>
-                        <span className="font-semibold">{edit.editedBy}</span> 
-                        <span className="font-normal"> el {new Date(edit.editedTimestamp.toDate()).toLocaleString()}:</span>
-                        <span className="font-normal"> {edit.changes.join(', ')}</span>
-                      </li>
-                    ))}
-                  </ul>
-                </div>
-              )}
+            
+            {/* Historial de ediciones */}
+            <div className="text-left max-w-2xl mx-auto">
+              <h4 className="text-lg md:text-xl font-semibold text-blue-700 mb-3 text-center">Historial de Cambios</h4>
+              <div className="bg-gray-50 p-4 rounded-lg">
+                <p className="text-sm text-gray-600 mb-2">
+                  <span className="font-semibold">Creado por:</span> {match.loadedBy || 'Desconocido'} 
+                  <span className="font-normal"> el {match.timestamp ? new Date(match.timestamp.toDate()).toLocaleString() : 'N/A'}</span>
+                </p>
+                
+                {match.editHistory && match.editHistory.length > 0 && (
+                  <div className="mt-3">
+                    <p className="text-sm font-semibold text-gray-700 mb-2">Ediciones:</p>
+                    <ul className="list-disc list-inside text-sm text-gray-600 space-y-1">
+                      {match.editHistory.map((edit, idx) => (
+                        <li key={idx}>
+                          <span className="font-semibold">{edit.editedBy}</span> 
+                          <span className="font-normal"> el {new Date(edit.editedTimestamp.toDate()).toLocaleString()}:</span>
+                          <span className="font-normal"> {edit.changes.join(', ')}</span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                )}
+              </div>
             </div>
           </div>
           
           {/* Botones de acción */}
-          <div className="flex justify-end space-x-3">
+          <div className="flex justify-end space-x-3 mt-6">
             {isAdmin && (
               <>
                 <button
