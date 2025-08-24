@@ -272,13 +272,18 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
                 </div>
                 <div className="w-12"></div> {/* Espacio vacío a la derecha */}
               </div>
-              </div>
               
-              {/* Resultado centrado */}
-              <div className="flex justify-center mb-0">
+              {/* Resultado centrado con tilde verde */}
+              <div className="flex justify-center items-center mb-0">
                 <div className="text-4xl font-bold text-blue-600">
                   {scoreTeam1}
                 </div>
+                {/* Tilde verde si el equipo 1 ganó */}
+                {team1Won && (
+                  <svg className="w-12 h-12 text-green-500 ml-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                )}
               </div>
               
               {/* Jugador 2 */}
@@ -295,20 +300,14 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
                   />
                   <span className="text-2xl">{team1Players[1] || 'Jugador 2'}</span>
                 </div>
-                <div className="w-12 flex justify-center">
-                  {/* Tilde verde si el equipo 1 ganó */}
-                  {team1Won && (
-                    <svg className="w-12 h-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                  )}
-                </div>
+                <div className="w-12"></div> {/* Espacio vacío a la derecha */}
+              </div>
             </div>
             
             {/* VS con líneas */}
             <div className="text-center my-4 flex items-center justify-center">
               <div className="h-px bg-gray-400 w-1/4"></div>
-              <div className="text-xl font-semibold text-gray-600 mx-3">vs</div>
+              <div className="text-2xl font-semibold text-gray-600 mx-3">vs</div>
               <div className="h-px bg-gray-400 w-1/4"></div>
             </div>
             
@@ -330,13 +329,18 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
                 </div>
                 <div className="w-12"></div> {/* Espacio vacío a la derecha */}
               </div>
-              </div>
               
-              {/* Resultado centrado */}
-              <div className="flex justify-center mb-3">
+              {/* Resultado centrado con tilde verde */}
+              <div className="flex justify-center items-center mb-3">
                 <div className="text-4xl font-bold text-blue-600">
                   {scoreTeam2}
                 </div>
+                {/* Tilde verde si el equipo 2 ganó */}
+                {team2Won && (
+                  <svg className="w-12 h-12 text-green-500 ml-4" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+                  </svg>
+                )}
               </div>
               
               {/* Jugador 2 */}
@@ -353,25 +357,38 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
                   />
                   <span className="text-2xl">{team2Players[1] || 'Jugador 2'}</span>
                 </div>
-                <div className="w-12 flex justify-center">
-                  {/* Tilde verde si el equipo 2 ganó */}
-                  {team2Won && (
-                    <svg className="w-12 h-12 text-green-500" fill="none" stroke="currentColor" viewBox="0 0 24 24" xmlns="http://www.w3.org/2000/svg">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="3" d="M5 13l4 4L19 7"></path>
-                    </svg>
-                  )}
-                </div>
+                <div className="w-12"></div> {/* Espacio vacío a la derecha */}
+              </div>
             </div>
           </div>
           
           {/* Información adicional centrada */}
           <div className="text-center mt-8">
-            <p className="text-lg md:text-xl font-semibold text-green-700 mb-2">
+            {/* Equipo ganador en recuadro verde (solo para móvil) */}
+            {match.winner && match.winner !== 'No determinado' && (
+              <div className="md:hidden border-2 border-green-600 bg-green-100 bg-opacity-70 rounded-lg p-3 mb-4 inline-block">
+                <p className="text-lg font-semibold text-green-800">
+                  Ganador: {match.winner}
+                </p>
+              </div>
+            )}
+            
+            <p className="hidden md:block text-lg md:text-xl font-semibold text-green-700 mb-2">
               Ganador: {match.winner || 'No determinado'}
             </p>
+            
             <p className="text-gray-600 mb-4">
               Fecha: {match.date || 'Fecha no especificada'}
             </p>
+            
+            {/* Comentario del partido */}
+            {match.comment && (
+              <div className="mb-4 p-3 bg-blue-50 rounded-lg">
+                <p className="text-gray-700 italic">
+                  "{match.comment}"
+                </p>
+              </div>
+            )}
             
             {/* Historial de ediciones */}
             <div className="text-left max-w-2xl mx-auto">
