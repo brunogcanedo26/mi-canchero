@@ -154,86 +154,94 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
           <div className="md:hidden">
             {/* Equipo 1 */}
             <div className="mb-6">
-              <div className="flex justify-between items-center mb-3">
-                {/* Jugador 1 - Izquierda */}
+              {/* Jugador 1 */}
+              <div className="flex justify-between items-center mb-2">
                 <div className="flex items-center">
                   <img 
                     src={getPlayerImage(team1Players[0])} 
                     alt={team1Players[0]} 
-                    className="w-12 h-12 rounded-full object-cover mr-2"
+                    className="w-15 h-15 rounded-full object-cover mr-2"
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = "/images/players/default.png";
                     }}
                   />
-                  <span className="font-medium text-sm">{team1Players[0] || 'Jugador 1'}</span>
+                  <span className="text-lg">{team1Players[0] || 'Jugador 1'}</span>
                 </div>
-                
-                {/* Resultado - Centro */}
-                <div className="text-center">
-                  <div className="text-xl font-bold text-blue-600">
-                    {scoreTeam1}
-                  </div>
+                <div className="w-8"></div> {/* Espacio vacío a la derecha */}
+              </div>
+              
+              {/* Resultado */}
+              <div className="flex justify-end mb-2">
+                <div className="text-2xl font-bold text-blue-600">
+                  {scoreTeam1}
                 </div>
-                
-                {/* Jugador 2 - Derecha */}
+              </div>
+              
+              {/* Jugador 2 */}
+              <div className="flex justify-between items-center">
                 <div className="flex items-center">
-                  <span className="font-medium text-sm">{team1Players[1] || 'Jugador 2'}</span>
                   <img 
                     src={getPlayerImage(team1Players[1])} 
                     alt={team1Players[1]} 
-                    className="w-12 h-12 rounded-full object-cover ml-2"
+                    className="w-15 h-15 rounded-full object-cover mr-2"
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = "/images/players/default.png";
                     }}
                   />
+                  <span className="text-lg">{team1Players[1] || 'Jugador 2'}</span>
                 </div>
+                <div className="w-8"></div> {/* Espacio vacío a la derecha */}
               </div>
             </div>
             
             {/* VS */}
             <div className="text-center my-4">
-              <div className="text-xl font-bold text-gray-600">VS</div>
+              <div className="text-xl font-semibold text-gray-600">vs</div>
             </div>
             
             {/* Equipo 2 */}
             <div className="mt-4">
-              <div className="flex justify-between items-center mb-3">
-                {/* Jugador 1 - Izquierda */}
+              {/* Jugador 1 */}
+              <div className="flex justify-between items-center mb-2">
                 <div className="flex items-center">
                   <img 
                     src={getPlayerImage(team2Players[0])} 
                     alt={team2Players[0]} 
-                    className="w-12 h-12 rounded-full object-cover mr-2"
+                    className="w-15 h-15 rounded-full object-cover mr-2"
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = "/images/players/default.png";
                     }}
                   />
-                  <span className="font-medium text-sm">{team2Players[0] || 'Jugador 1'}</span>
+                  <span className="text-lg">{team2Players[0] || 'Jugador 1'}</span>
                 </div>
-                
-                {/* Resultado - Centro */}
-                <div className="text-center">
-                  <div className="text-xl font-bold text-blue-600">
-                    {scoreTeam2}
-                  </div>
+                <div className="w-8"></div> {/* Espacio vacío a la derecha */}
+              </div>
+              
+              {/* Resultado */}
+              <div className="flex justify-end mb-2">
+                <div className="text-2xl font-bold text-blue-600">
+                  {scoreTeam2}
                 </div>
-                
-                {/* Jugador 2 - Derecha */}
+              </div>
+              
+              {/* Jugador 2 */}
+              <div className="flex justify-between items-center">
                 <div className="flex items-center">
-                  <span className="font-medium text-sm">{team2Players[1] || 'Jugador 2'}</span>
                   <img 
                     src={getPlayerImage(team2Players[1])} 
                     alt={team2Players[1]} 
-                    className="w-12 h-12 rounded-full object-cover ml-2"
+                    className="w-15 h-15 rounded-full object-cover mr-2"
                     onError={(e) => {
                       e.target.onerror = null;
                       e.target.src = "/images/players/default.png";
                     }}
                   />
+                  <span className="text-lg">{team2Players[1] || 'Jugador 2'}</span>
                 </div>
+                <div className="w-8"></div> {/* Espacio vacío a la derecha */}
               </div>
             </div>
           </div>
@@ -241,40 +249,46 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
           {/* Versión desktop - Diseño lado a lado */}
           <div className="hidden md:flex flex-col items-center mb-8">
             {/* Equipo 1 */}
-            <div className="flex justify-between items-center w-full mb-6">
-              {/* Jugador 1 - Izquierda */}
-              <div className="flex items-center w-2/5">
-                <img 
-                  src={getPlayerImage(team1Players[0])} 
-                  alt={team1Players[0]} 
-                  className="w-16 h-16 rounded-full object-cover mr-4"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "/images/players/default.png";
-                  }}
-                />
-                <span className="font-medium text-lg">{team1Players[0] || 'Jugador 1'}</span>
+            <div className="flex flex-col w-full mb-6">
+              {/* Jugador 1 */}
+              <div className="flex justify-between items-center mb-3">
+                <div className="flex items-center">
+                  <img 
+                    src={getPlayerImage(team1Players[0])} 
+                    alt={team1Players[0]} 
+                    className="w-20 h-20 rounded-full object-cover mr-3"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/images/players/default.png";
+                    }}
+                  />
+                  <span className="text-3xl">{team1Players[0] || 'Jugador 1'}</span>
+                </div>
+                <div className="w-12"></div> {/* Espacio vacío a la derecha */}
               </div>
               
-              {/* Resultado - Centro */}
-              <div className="text-center w-1/5">
-                <div className="text-3xl font-bold text-blue-600">
+              {/* Resultado */}
+              <div className="flex justify-end mb-0">
+                <div className="h-30 text-2xl font-bold text-blue-600">
                   {scoreTeam1}
                 </div>
               </div>
               
-              {/* Jugador 2 - Derecha */}
-              <div className="flex items-center justify-end w-2/5">
-                <span className="font-medium text-lg">{team1Players[1] || 'Jugador 2'}</span>
-                <img 
-                  src={getPlayerImage(team1Players[1])} 
-                  alt={team1Players[1]} 
-                  className="w-16 h-16 rounded-full object-cover ml-4"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "/images/players/default.png";
-                  }}
-                />
+              {/* Jugador 2 */}
+              <div className="flex justify-between items-center">
+                <div className="flex items-center">
+                  <img 
+                    src={getPlayerImage(team1Players[1])} 
+                    alt={team1Players[1]} 
+                    className="w-20 h-20 rounded-full object-cover mr-3"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/images/players/default.png";
+                    }}
+                  />
+                  <span className="text-2xl">{team1Players[1] || 'Jugador 2'}</span>
+                </div>
+                <div className="w-12"></div> {/* Espacio vacío a la derecha */}
               </div>
             </div>
             
@@ -284,40 +298,46 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
             </div>
             
             {/* Equipo 2 */}
-            <div className="flex justify-between items-center w-full mt-4">
-              {/* Jugador 1 - Izquierda */}
-              <div className="flex items-center w-2/5">
-                <img 
-                  src={getPlayerImage(team2Players[0])} 
-                  alt={team2Players[0]} 
-                  className="w-16 h-16 rounded-full object-cover mr-4"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "/images/players/default.png";
-                  }}
-                />
-                <span className="font-medium text-lg">{team2Players[0] || 'Jugador 1'}</span>
+            <div className="flex flex-col w-full mt-4">
+              {/* Jugador 1 */}
+              <div className="flex justify-between items-center mb-3">
+                <div className="flex items-center">
+                  <img 
+                    src={getPlayerImage(team2Players[0])} 
+                    alt={team2Players[0]} 
+                    className="w-20 h-20 rounded-full object-cover mr-3"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/images/players/default.png";
+                    }}
+                  />
+                  <span className="text-2xl">{team2Players[0] || 'Jugador 1'}</span>
+                </div>
+                <div className="w-12"></div> {/* Espacio vacío a la derecha */}
               </div>
               
-              {/* Resultado - Centro */}
-              <div className="text-center w-1/5">
-                <div className="text-3xl font-bold text-blue-600">
+              {/* Resultado */}
+              <div className="flex justify-end mb-3">
+                <div className="text-4xl font-bold text-blue-600">
                   {scoreTeam2}
                 </div>
               </div>
               
-              {/* Jugador 2 - Derecha */}
-              <div className="flex items-center justify-end w-2/5">
-                <span className="font-medium text-lg">{team2Players[1] || 'Jugador 2'}</span>
-                <img 
-                  src={getPlayerImage(team2Players[1])} 
-                  alt={team2Players[1]} 
-                  className="w-16 h-16 rounded-full object-cover ml-4"
-                  onError={(e) => {
-                    e.target.onerror = null;
-                    e.target.src = "/images/players/default.png";
-                  }}
-                />
+              {/* Jugador 2 */}
+              <div className="flex justify-between items-center">
+                <div className="flex items-center">
+                  <img 
+                    src={getPlayerImage(team2Players[1])} 
+                    alt={team2Players[1]} 
+                    className="w-20 h-20 rounded-full object-cover mr-3"
+                    onError={(e) => {
+                      e.target.onerror = null;
+                      e.target.src = "/images/players/default.png";
+                    }}
+                  />
+                  <span className="text-2xl">{team2Players[1] || 'Jugador 2'}</span>
+                </div>
+                <div className="w-12"></div> {/* Espacio vacío a la derecha */}
               </div>
             </div>
           </div>
