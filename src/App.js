@@ -168,9 +168,23 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
   const team1Won = match.winner && match.winner.startsWith('Equipo 1');
   const team2Won = match.winner && match.winner.startsWith('Equipo 2');
   
+  // Manejar clic en el fondo para cerrar la ventana
+  const handleBackdropClick = (e) => {
+    // Si el clic es directamente en el fondo (no en un elemento hijo)
+    if (e.target === e.currentTarget) {
+      onClose();
+    }
+  };
+  
   return (
-    <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4">
-      <div className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto">
+    <div 
+      className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50 p-4"
+      onClick={handleBackdropClick}
+    >
+      <div 
+        className="bg-white rounded-xl shadow-2xl max-w-4xl w-full max-h-[90vh] overflow-y-auto"
+        onClick={(e) => e.stopPropagation()} // Evitar que el clic dentro de la ventana se propague al fondo
+      >
         <div className="p-6">
           <div className="flex justify-between items-center mb-6">
             <h3 className="text-2xl font-bold text-blue-700">Detalles del Partido</h3>
@@ -450,13 +464,19 @@ const MatchCardExpanded = ({ match, onClose, onEdit, onDelete, isAdmin }) => {
             {isAdmin && (
               <>
                 <button
-                  onClick={() => onEdit(match)}
+                  onClick={(e) => {
+                    e.stopPropagation(); // Evitar que el clic se propague al fondo
+                    onEdit(match);
+                  }}
                   className="bg-yellow-500 hover:bg-yellow-600 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center"
                 >
                   <Edit className="mr-2" size={16} /> Editar
                 </button>
                 <button
-                  onClick={() => onDelete(match)}
+                  onClick={(e) => {
+                    e.stopPropagation(); // Evitar que el clic se propague al fondo
+                    onDelete(match);
+                  }}
                   className="bg-red-500 hover:bg-red-600 text-white font-bold py-2 px-4 rounded-full focus:outline-none focus:shadow-outline flex items-center"
                 >
                   <Trash2 className="mr-2" size={16} /> Eliminar
