@@ -93,7 +93,7 @@ const getPlayerImage = (playerName) => {
   return playerImages[playerName] || "/images/players/default.png";
 };
 
-// Componente para la vista reduida de un partido
+// Componente para la vista reducida de un partido
 const MatchCardReduced = ({ match, onClick }) => {
   const team1Players = match.team1Players || [];
   const team2Players = match.team2Players || [];
@@ -105,7 +105,35 @@ const MatchCardReduced = ({ match, onClick }) => {
       className="bg-white rounded-lg shadow-md p-3 mb-3 cursor-pointer hover:shadow-lg transition-shadow duration-200"
       onClick={onClick}
     >
-      <div className="flex justify-between items-center">
+      {/* Versión móvil - Diseño dividido en dos mitades */}
+      <div className="md:hidden">
+        <div className="flex h-full">
+          {/* Mitad izquierda - Equipo 1 */}
+          <div className="w-1/2 flex flex-col items-center justify-center pr-2 border-r border-gray-300">
+            <div className="text-center">
+              <div className="font-medium text-sm truncate">{team1Players[0] || 'Jugador 1'}</div>
+              <div className="font-medium text-sm truncate">{team1Players[1] || 'Jugador 2'}</div>
+              <div className="text-lg md:text-xl font-bold text-blue-600 mt-1">
+                {scoreTeam1}
+              </div>
+            </div>
+          </div>
+          
+          {/* Mitad derecha - Equipo 2 */}
+          <div className="w-1/2 flex flex-col items-center justify-center pl-2">
+            <div className="text-center">
+              <div className="font-medium text-sm truncate">{team2Players[0] || 'Jugador 1'}</div>
+              <div className="font-medium text-sm truncate">{team2Players[1] || 'Jugador 2'}</div>
+              <div className="text-lg md:text-xl font-bold text-blue-600 mt-1">
+                {scoreTeam2}
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+      
+      {/* Versión desktop - Diseño original */}
+      <div className="hidden md:flex justify-between items-center">
         {/* Equipo 1 */}
         <div className="text-left w-2/5 pr-2">
           <div className="font-medium text-sm truncate">{team1Players[0] || 'Jugador 1'}</div>
